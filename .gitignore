@@ -1,0 +1,73 @@
+# Local configuration and credentials. Keep safe, documented examples.
+.env
+.env.*
+*.env
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+/secrets/
+
+# Installed dependencies and Python packaging output.
+.venv/
+venv/
+.pnpm-store/
+node_modules/
+*.egg-info/
+__pycache__/
+*.py[cod]
+/build/
+/dist/
+
+# Build, test, and tool caches. Test fixtures and lockfiles stay versioned.
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+coverage/
+.cache/
+.vite/
+frontend/dist/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+test-results/
+playwright-report/
+playwright/.auth/
+
+# Runtime databases, SQLite sidecars, exports, and recovery data.
+data/
+/backups/
+/exports/
+/recovery/
+codex-home/
+*-recovery.enc
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+*.pid
+
+# Local agent sessions and generated review evidence.
+.gstack/
+.impeccable/
+.codex/
+.claude/
+/docs/review-artifacts/
+
+# Machine-specific files and editor state.
+.DS_Store
+._*
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

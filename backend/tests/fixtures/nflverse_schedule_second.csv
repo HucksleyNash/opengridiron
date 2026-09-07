@@ -1,0 +1,6 @@
+game_id,season,game_type,week,gameday,weekday,gametime,away_team,away_score,home_team,home_score,location,result,total,overtime,old_game_id,gsis,nfl_detail_id,pfr,pff,espn,ftn,away_rest,home_rest,away_moneyline,home_moneyline,spread_line,away_spread_odds,home_spread_odds,total_line,under_odds,over_odds,div_game,roof,surface,temp,wind,away_qb_id,home_qb_id,away_qb_name,home_qb_name,away_coach,home_coach,referee,stadium_id,stadium
+2095_02_GB_CHI,2095,REG,2,2095-09-15,Sunday,13:00,GB,,CHI,,Home,,,,legacy-reg-moved,gsis-2095-reg
+2095_18_KC_BUF,2095,WC,18,2096-01-07,Saturday,16:30,KC,,BUF,,Home,,,,legacy-wc,gsis-2095-wc
+2095_19_DAL_SF,2095,DIV,19,2096-01-14,Sunday,18:30,DAL,,SF,,Home,,,,legacy-div,gsis-2095-div
+2095_20_BAL_CIN,2095,CON,20,2096-01-21,Sunday,15:00,BAL,,CIN,,Home,,,,legacy-con,gsis-2095-con
+2095_21_PHI_DEN,2095,SB,21,2096-02-11,Sunday,18:30,PHI,,DEN,,Neutral,,,,legacy-sb,gsis-2095-sb

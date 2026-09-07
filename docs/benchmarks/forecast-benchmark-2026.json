@@ -1,0 +1,228 @@
+{
+  "version": "weekly-walk-forward-v2",
+  "target_season": 2026,
+  "selected": "recency_baseline",
+  "status": "evaluated",
+  "features": [
+    "recent_production_delta",
+    "usage_trend_points",
+    "opponent_allowed_delta"
+  ],
+  "interval_target": 0.8,
+  "fit": null,
+  "interval_half_width": 7.1721089064049774,
+  "sample_policy": "Observed player appearances with at least four strictly prior games. DNPs are not inferred as zero; availability remains a separate gate.",
+  "training_seasons": [
+    2023
+  ],
+  "calibration_season": 2024,
+  "holdout_season": 2025,
+  "training_count": 4477,
+  "calibration_count": 6271,
+  "holdout_count": 6502,
+  "candidate_fit": {
+    "means": [
+      0.05243074773538203,
+      0.13341528945443332,
+      0.0037449438018412368
+    ],
+    "scales": [
+      2.1477558521982543,
+      1.684426745087638,
+      4.57163065722586
+    ],
+    "coefficients": [
+      0.04414394853949191,
+      -0.2991120015533225,
+      0.2615218328545291,
+      0.3630941536729272
+    ],
+    "penalty": 1000.0
+  },
+  "baseline_interval_half_width": 7.1721089064049774,
+  "candidate": {
+    "count": 6502,
+    "mae": 4.472081,
+    "rmse": 6.091941,
+    "interval_coverage": 0.800677,
+    "interval_half_width": 7.147822
+  },
+  "baseline": {
+    "count": 6502,
+    "mae": 4.459746,
+    "rmse": 6.097721,
+    "interval_coverage": 0.799754,
+    "interval_half_width": 7.172109
+  },
+  "positions": {
+    "DEF": {
+      "candidate": {
+        "count": 459,
+        "mae": 4.345321,
+        "rmse": 5.575321,
+        "interval_coverage": 0.843137,
+        "interval_half_width": 7.147822
+      },
+      "baseline": {
+        "count": 459,
+        "mae": 4.393751,
+        "rmse": 5.645078,
+        "interval_coverage": 0.840959,
+        "interval_half_width": 7.172109
+      },
+      "admitted": false
+    },
+    "K": {
+      "candidate": {
+        "count": 513,
+        "mae": 3.875446,
+        "rmse": 4.832735,
+        "interval_coverage": 0.85575,
+        "interval_half_width": 7.147822
+      },
+      "baseline": {
+        "count": 513,
+        "mae": 3.877019,
+        "rmse": 4.834403,
+        "interval_coverage": 0.8577,
+        "interval_half_width": 7.172109
+      },
+      "admitted": false
+    },
+    "QB": {
+      "candidate": {
+        "count": 600,
+        "mae": 6.785751,
+        "rmse": 8.388817,
+        "interval_coverage": 0.585,
+        "interval_half_width": 7.147822
+      },
+      "baseline": {
+        "count": 600,
+        "mae": 6.795664,
+        "rmse": 8.410817,
+        "interval_coverage": 0.59,
+        "interval_half_width": 7.172109
+      },
+      "admitted": false
+    },
+    "RB": {
+      "candidate": {
+        "count": 1431,
+        "mae": 4.511051,
+        "rmse": 6.315926,
+        "interval_coverage": 0.797345,
+        "interval_half_width": 7.147822
+      },
+      "baseline": {
+        "count": 1431,
+        "mae": 4.497992,
+        "rmse": 6.330482,
+        "interval_coverage": 0.798043,
+        "interval_half_width": 7.172109
+      },
+      "admitted": false
+    },
+    "TE": {
+      "candidate": {
+        "count": 1187,
+        "mae": 3.692615,
+        "rmse": 5.216336,
+        "interval_coverage": 0.861837,
+        "interval_half_width": 7.147822
+      },
+      "baseline": {
+        "count": 1187,
+        "mae": 3.668364,
+        "rmse": 5.218373,
+        "interval_coverage": 0.856782,
+        "interval_half_width": 7.172109
+      },
+      "admitted": false
+    },
+    "WR": {
+      "candidate": {
+        "count": 2312,
+        "mae": 4.405261,
+        "rmse": 6.007705,
+        "interval_coverage": 0.806661,
+        "interval_half_width": 7.147822
+      },
+      "baseline": {
+        "count": 2312,
+        "mae": 4.37857,
+        "rmse": 5.992574,
+        "interval_coverage": 0.804931,
+        "interval_half_width": 7.172109
+      },
+      "admitted": false
+    }
+  },
+  "admission_rule": "Lower paired holdout MAE and at least 70% coverage for an 80% interval; per-position improvement and at least 100 holdout appearances also required for serving.",
+  "input_sha256": "7027875ffa506899989d7145d005c51beec98244008f3d2e5809a7cf0eb749e1",
+  "scoring": {
+    "passing_yards": 0.04,
+    "passing_tds": 4,
+    "interceptions": -2,
+    "rushing_yards": 0.1,
+    "rushing_tds": 6,
+    "receptions": 1,
+    "receiving_yards": 0.1,
+    "receiving_tds": 6,
+    "fumbles_lost": -2,
+    "two_point_conversions": 2,
+    "sack": 1,
+    "interception": 2,
+    "fumble_recovery": 2,
+    "touchdown": 6,
+    "safety": 2,
+    "block_kick": 2,
+    "kickoff_and_punt_return_touchdowns": 6,
+    "extra_point_returned": 2,
+    "points_allowed_0_points": 10,
+    "points_allowed_1_6_points": 7,
+    "points_allowed_7_13_points": 4,
+    "points_allowed_14_20_points": 1,
+    "points_allowed_21_27_points": 0,
+    "points_allowed_28_34_points": -1,
+    "points_allowed_35_points": -4,
+    "field_goals_0_19_yards": 3,
+    "field_goals_20_29_yards": 3,
+    "field_goals_30_39_yards": 3,
+    "field_goals_40_49_yards": 4,
+    "field_goals_50_yards": 5,
+    "point_after_attempt_made": 1
+  },
+  "sources": [
+    {
+      "file": "player-2023.csv",
+      "sha256": "f19cb71a5de0dce7fd09376026237c9ee9d5a93fe13815a2ea3ec2d37204cb17",
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2023.csv"
+    },
+    {
+      "file": "player-2024.csv",
+      "sha256": "3ddc45a84f759aa348ce465ae001752c530575455717657cdfe1f8abfcdb4759",
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2024.csv"
+    },
+    {
+      "file": "player-2025.csv",
+      "sha256": "e5e0615b3d96a3eaebfaee91e55afb4a4e7fe0caf057454177bcd7d6ad4bcfc2",
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2025.csv"
+    },
+    {
+      "file": "team-2023.csv",
+      "sha256": "dc5a387daabe8663deaddac492ad7020d47fb1a66048690b355b406cd8e4c454",
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/stats_team/stats_team_week_2023.csv"
+    },
+    {
+      "file": "team-2024.csv",
+      "sha256": "b207a1430c2715d03bbf1844c4eae98695f364851ff6025f422febc2c13f5255",
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/stats_team/stats_team_week_2024.csv"
+    },
+    {
+      "file": "team-2025.csv",
+      "sha256": "91058a59d894855377b2f39f40c4e7bdbeef96d12144289dc68215209a1c93cb",
+      "url": "https://github.com/nflverse/nflverse-data/releases/download/stats_team/stats_team_week_2025.csv"
+    }
+  ]
+}

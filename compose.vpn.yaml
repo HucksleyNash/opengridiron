@@ -1,0 +1,81 @@
+# Stable deployment identity: keep existing containers, data, and Codex credentials.
+# Open Gridiron branding is independent of this persistent Compose project name.
+name: football-decision-suite-vpn
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      APP_ENV: vpn
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET to a long random value}
+      AUTH_REQUIRED: "true"
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set the private HTTPS URL}
+      DATABASE_URL: sqlite:////data/football.db
+      DATA_DIR: /data
+      TIMEZONE: ${TIMEZONE:-America/Chicago}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      YAHOO_REFRESH_ENABLED: ${YAHOO_REFRESH_ENABLED:-true}
+      YAHOO_REFRESH_MINUTES: ${YAHOO_REFRESH_MINUTES:-60}
+      YAHOO_REQUEST_INTERVAL_SECONDS: ${YAHOO_REQUEST_INTERVAL_SECONDS:-1}
+      NEWS_REFRESH_MINUTES: ${NEWS_REFRESH_MINUTES:-15}
+      NFLVERSE_REFRESH_MINUTES: ${NFLVERSE_REFRESH_MINUTES:-60}
+      NFLVERSE_LIVE_REFRESH_MINUTES: ${NFLVERSE_LIVE_REFRESH_MINUTES:-15}
+      SOURCE_FAILURE_COOLDOWN_MINUTES: ${SOURCE_FAILURE_COOLDOWN_MINUTES:-30}
+      OWNER_USERNAME: ${OWNER_USERNAME:-owner}
+      OWNER_PASSWORD: ${OWNER_PASSWORD:-}
+      CODEX_RUNNER_URL: http://codex-runner:8090
+      CODEX_RUNNER_TOKEN: ${CODEX_RUNNER_TOKEN:?Set CODEX_RUNNER_TOKEN}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      YAHOO_CLIENT_ID: ${YAHOO_CLIENT_ID:-}
+      YAHOO_CLIENT_SECRET: ${YAHOO_CLIENT_SECRET:-}
+      YAHOO_REDIRECT_URI: ${PUBLIC_BASE_URL}/api/v1/integrations/yahoo/callback
+      DRAFT_SUITE_ENABLED: ${DRAFT_SUITE_ENABLED:-true}
+      DRAFT_YAHOO_ENABLED: ${DRAFT_YAHOO_ENABLED:-true}
+      DRAFT_FORECAST_ENABLED: ${DRAFT_FORECAST_ENABLED:-true}
+      DRAFT_SIMULATION_ENABLED: ${DRAFT_SIMULATION_ENABLED:-true}
+      DRAFT_AI_EXPLANATIONS_ENABLED: ${DRAFT_AI_EXPLANATIONS_ENABLED:-true}
+      DRAFT_NFLVERSE_RANGES_ENABLED: ${DRAFT_NFLVERSE_RANGES_ENABLED:-true}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_CLAIMS_EMAIL: ${VAPID_CLAIMS_EMAIL:-mailto:owner@example.com}
+    ports:
+      - "${VPN_BIND_ADDRESS:?Set the private interface address}:8787:8787"
+    volumes:
+      - football-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    depends_on:
+      codex-runner:
+        condition: service_healthy
+
+  codex-runner:
+    build:
+      context: .
+      dockerfile: codex_runner/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      CODEX_RUNNER_TOKEN: ${CODEX_RUNNER_TOKEN:?Set CODEX_RUNNER_TOKEN}
+      CODEX_RUN_TIMEOUT_SECONDS: ${CODEX_RUN_TIMEOUT_SECONDS:-270}
+    volumes:
+      - codex-home:/codex-home
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8090/healthz',headers={'X-Runner-Token':os.environ['CODEX_RUNNER_TOKEN']}); urllib.request.urlopen(r,timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  football-data:
+  codex-home:

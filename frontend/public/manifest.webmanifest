@@ -1,0 +1,9 @@
+{
+  "name": "Open Gridiron",
+  "short_name": "Open Gridiron",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07150f",
+  "theme_color": "#0d2a1f",
+  "icons": [{ "src": "/football.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

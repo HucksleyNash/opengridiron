@@ -1,0 +1,22 @@
+# Combine with exactly one deployment file. The profile never starts with normal `up`.
+services:
+  recovery:
+    profiles: [recovery]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["python", "-m", "app.operations.recovery"]
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    # Read the two differently owned volumes and write the operator's private output directory.
+    cap_add: [DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - football-data:/data:ro
+      - codex-home:/codex-home:ro
+      - ./recovery:/recovery-output
+      - ./.env:/recovery-config.env:ro
+    tmpfs:
+      - /tmp:size=${RECOVERY_TMPFS_SIZE:-2g},mode=1777

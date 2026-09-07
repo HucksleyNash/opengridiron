@@ -1,0 +1,188 @@
+{
+  "season": 2026,
+  "audit_as_of_date": "2026-09-04",
+  "downloaded_at": "2026-09-04T20:00:15.302269+00:00",
+  "source": {
+    "url": "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv",
+    "sha256": "e05a9eb650df00d61983e0cfbe41ae68814f31305e59719716c4723f943c1951",
+    "bytes": 2177177
+  },
+  "benchmark": {
+    "model": "elo-weekly-v1",
+    "status": "validated",
+    "k": 35.0,
+    "home_edge": 35.0,
+    "holdout_season": 2025,
+    "holdout_games": 285,
+    "brier": 0.22277,
+    "coin_flip_brier": 0.24912,
+    "market_games": 285,
+    "market_brier": 0.21038,
+    "model_on_market_games_brier": 0.22277,
+    "limitations": "Win probabilities only. Weekly Elo, no injury or lineup inputs. Holdout tests a 50% baseline; no claimed market edge."
+  },
+  "scheduled_regular_season_games": 272,
+  "current_week": 1,
+  "weeks": [
+    {
+      "week": 1,
+      "scheduled_games": 16,
+      "model_available": 16,
+      "market_available": 16,
+      "effective_win_probability_available": 16,
+      "scored_games": 0
+    },
+    {
+      "week": 2,
+      "scheduled_games": 16,
+      "model_available": 16,
+      "market_available": 16,
+      "effective_win_probability_available": 16,
+      "scored_games": 0
+    },
+    {
+      "week": 3,
+      "scheduled_games": 16,
+      "model_available": 16,
+      "market_available": 16,
+      "effective_win_probability_available": 16,
+      "scored_games": 0
+    },
+    {
+      "week": 4,
+      "scheduled_games": 16,
+      "model_available": 16,
+      "market_available": 16,
+      "effective_win_probability_available": 16,
+      "scored_games": 0
+    },
+    {
+      "week": 5,
+      "scheduled_games": 15,
+      "model_available": 15,
+      "market_available": 15,
+      "effective_win_probability_available": 15,
+      "scored_games": 0
+    },
+    {
+      "week": 6,
+      "scheduled_games": 14,
+      "model_available": 14,
+      "market_available": 14,
+      "effective_win_probability_available": 14,
+      "scored_games": 0
+    },
+    {
+      "week": 7,
+      "scheduled_games": 14,
+      "model_available": 14,
+      "market_available": 7,
+      "effective_win_probability_available": 14,
+      "scored_games": 0
+    },
+    {
+      "week": 8,
+      "scheduled_games": 14,
+      "model_available": 14,
+      "market_available": 0,
+      "effective_win_probability_available": 14,
+      "scored_games": 0
+    },
+    {
+      "week": 9,
+      "scheduled_games": 15,
+      "model_available": 15,
+      "market_available": 1,
+      "effective_win_probability_available": 15,
+      "scored_games": 0
+    },
+    {
+      "week": 10,
+      "scheduled_games": 14,
+      "model_available": 14,
+      "market_available": 1,
+      "effective_win_probability_available": 14,
+      "scored_games": 0
+    },
+    {
+      "week": 11,
+      "scheduled_games": 13,
+      "model_available": 13,
+      "market_available": 1,
+      "effective_win_probability_available": 13,
+      "scored_games": 0
+    },
+    {
+      "week": 12,
+      "scheduled_games": 16,
+      "model_available": 16,
+      "market_available": 5,
+      "effective_win_probability_available": 16,
+      "scored_games": 0
+    },
+    {
+      "week": 13,
+      "scheduled_games": 14,
+      "model_available": 14,
+      "market_available": 0,
+      "effective_win_probability_available": 14,
+      "scored_games": 0
+    },
+    {
+      "week": 14,
+      "scheduled_games": 15,
+      "model_available": 15,
+      "market_available": 0,
+      "effective_win_probability_available": 15,
+      "scored_games": 0
+    },
+    {
+      "week": 15,
+      "scheduled_games": 16,
+      "model_available": 16,
+      "market_available": 0,
+      "effective_win_probability_available": 16,
+      "scored_games": 0
+    },
+    {
+      "week": 16,
+      "scheduled_games": 16,
+      "model_available": 16,
+      "market_available": 4,
+      "effective_win_probability_available": 16,
+      "scored_games": 0
+    },
+    {
+      "week": 17,
+      "scheduled_games": 16,
+      "model_available": 16,
+      "market_available": 0,
+      "effective_win_probability_available": 16,
+      "scored_games": 0
+    },
+    {
+      "week": 18,
+      "scheduled_games": 16,
+      "model_available": 16,
+      "market_available": 0,
+      "effective_win_probability_available": 16,
+      "scored_games": 0
+    }
+  ],
+  "future_coverage": {
+    "scheduled_games": 256,
+    "model_available": 256,
+    "market_available": 96,
+    "effective_win_probability_available": 256
+  },
+  "spread_convention": {
+    "meaning": "nflverse spread_line is positive when home team is favored; home adjusted margin = home_score - away_score - spread_line.",
+    "source_url": "https://github.com/nflverse/nfldata/blob/master/DATASETS.md"
+  },
+  "limitations": [
+    "Offline call to the exact schedule_forecasts serving function; no live DB, Yahoo or AI calls.",
+    "Model admission is against a 50% baseline, not the betting market; compare market results on the identical priced holdout sample.",
+    "Later-week Elo probabilities use currently observed results, with no invented future outcomes; future prices/rosters may change.",
+    "Win probability coverage does not imply ATS probability coverage."
+  ]
+}
