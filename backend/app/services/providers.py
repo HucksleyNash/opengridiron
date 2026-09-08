@@ -1740,6 +1740,71 @@ def _compact_draft_player_details(dossier: dict[str, Any], encoded_bytes: int) -
     )
 
 
+def _compact_league_player_context(dossier: dict[str, Any]) -> None:
+    """Share repeated source context losslessly; keep every player and individual fact."""
+    league = dossier.get("league") or {}
+    players = league.get("players", [])
+
+    def share(
+        records: list[dict[str, Any]],
+        fields: tuple[str, ...],
+        table_name: str,
+        reference_key: str,
+    ) -> None:
+        # Frozen follow-ups already carry their own reference tables.
+        if table_name in league:
+            return
+        groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for record in records:
+            if reference_key in record:
+                continue
+            common = {key: record[key] for key in fields if key in record}
+            if common:
+                groups[json.dumps(common, separators=(",", ":"), sort_keys=True)].append(record)
+        shared = {}
+        for encoded, group in groups.items():
+            if len(group) < 2:
+                continue
+            common = json.loads(encoded)
+            reference = str(len(shared) + 1)
+            shared[reference] = common
+            for record in group:
+                for key in common:
+                    del record[key]
+                record[reference_key] = reference
+        if shared:
+            league[table_name] = shared
+
+    share(
+        [player["projection_context"] for player in players if player.get("projection_context")],
+        ("scoring",),
+        "player_projection_contexts",
+        "context_ref",
+    )
+    share(
+        [item for player in players for item in player.get("evidence", [])],
+        (
+            "kind",
+            "source",
+            "source_url",
+            "license",
+            "model_version",
+            "range_definition",
+            "risk_definition",
+        ),
+        "player_evidence_definitions",
+        "definition_ref",
+    )
+    if "player_projection_contexts" in league or "player_evidence_definitions" in league:
+        dossier["data_access"].setdefault("bounded_views", {})["league_player_context"] = (
+            "Repeated source context is stored once without omitting any player evidence. "
+            "Merge league.player_projection_contexts[projection_context.context_ref] into that "
+            "player's projection_context; merge league.player_evidence_definitions[definition_ref] "
+            "into each referencing evidence item. References use this frozen league's tables, "
+            "not current league rules. Individual values, timestamps and coverage are unchanged."
+        )
+
+
 def _frozen_dossier(dossier: dict[str, Any]) -> tuple[dict[str, Any], str]:
     """Enforce a hard request budget before sending data or starting a paid run."""
     frozen = deepcopy(dossier)
@@ -1747,6 +1812,9 @@ def _frozen_dossier(dossier: dict[str, Any]) -> tuple[dict[str, Any], str]:
     access["scope"] = _dossier_scope(frozen)
     access["request_budget"] = {**access.get("request_budget", {}), "max_bytes": MAX_DOSSIER_BYTES}
     encoded = json.dumps(frozen, separators=(",", ":"), sort_keys=True)
+    if len(encoded.encode()) > MAX_DOSSIER_BYTES:
+        _compact_league_player_context(frozen)
+        encoded = json.dumps(frozen, separators=(",", ":"), sort_keys=True)
     if len(encoded.encode()) > MAX_DOSSIER_BYTES:
         _compact_draft_player_details(frozen, len(encoded.encode()))
         encoded = json.dumps(frozen, separators=(",", ":"), sort_keys=True)
@@ -1860,6 +1928,9 @@ class ProviderAdapter(ABC):
             "imported season projections. Otherwise use data_access.scope.team_name or "
             "league.my_team_name for the owner, and check every projection_context period, "
             "week, season, and scoring before comparing values. If those are unknown, say so. "
+            "Resolve projection_context.context_ref through league.player_projection_contexts "
+            "and evidence definition_ref through league.player_evidence_definitions, merging "
+            "the referenced fields into that record before interpreting its scoring or evidence. "
             "Stored/included coverage counts may differ; omitted evidence is not absent data. "
             "When league.draft_context is present, it is authoritative for team count, draft "
             "order, availability, team rosters, scoring rules, roster slots, ADP, and value over "
