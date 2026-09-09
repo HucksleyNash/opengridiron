@@ -49,6 +49,7 @@ export type Pool = {
   pool_type: "survivor" | "confidence";
   season: number;
   entry_count: number;
+  sleeper?: SleeperPoolInfo | null;
   rules: {
     direction: "winner" | "loser";
     basis: "straight_up" | "against_spread";
@@ -84,6 +85,27 @@ export type Game = {
 };
 
 export type PoolRules = Pool["rules"];
+export type SleeperPoolInfo = {
+  league_id: string;
+  url: string;
+  name: string;
+  season: number;
+  status: string;
+  current_week: number | null;
+  capacity: number | null;
+  participant_count: number;
+  entry_count: number;
+  commissioners: string[];
+  username: string;
+  user_id: string | null;
+  entries: { roster_id: number; name: string; eliminated: boolean | null }[];
+  rules: PoolRules | null;
+  settings: Record<string, unknown>;
+  scoring_settings: Record<string, unknown>;
+  fetched_at: string;
+  warnings: string[];
+  unsupported: string[];
+};
 export type CardState = "draft" | "complete" | "locked_incomplete" | "locked_complete" | "needs_repair";
 
 export type ScheduleStatus = {

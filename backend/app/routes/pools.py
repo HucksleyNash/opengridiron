@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -20,6 +21,8 @@ from ..schemas import (
     PoolOverviewOut,
     PoolRules,
     PoolWeekOut,
+    SleeperPoolInfo,
+    SleeperPoolRequest,
     WeeklyCardUpdate,
     WeeklyCardUpdateOut,
 )
@@ -33,6 +36,7 @@ from ..services.pool_analysis import (
 from ..services.pool_outcomes import settle_season, standings
 from ..services.pool_strategy import season_strategy
 from ..services.pool_week import get_pool_week, pool_overview, save_weekly_card
+from ..services.sleeper_pools import pool_source, preview_pool, save_import
 
 Db = Annotated[Session, Depends(get_db)]
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(current_owner)])
@@ -46,7 +50,35 @@ def pool_out(pool: Pool) -> PoolOut:
         season=pool.season,
         rules=PoolRules.model_validate(json.loads(pool.rules_json)),
         entry_count=len(pool.entries),
+        sleeper=pool_source(pool),
     )
+
+
+@router.post("/integrations/sleeper/pools/preview", response_model=SleeperPoolInfo)
+async def preview_sleeper_pool(payload: SleeperPoolRequest) -> SleeperPoolInfo:
+    return await preview_pool(payload)
+
+
+@router.post("/integrations/sleeper/pools/import", response_model=PoolOut)
+async def import_sleeper_pool(payload: SleeperPoolRequest, db: Db) -> PoolOut:
+    info = await preview_pool(payload)
+    return pool_out(save_import(db, info))
+
+
+@router.post("/pools/{pool_id}/sleeper/refresh", response_model=PoolOut)
+async def refresh_sleeper_pool(pool_id: int, db: Db) -> PoolOut:
+    pool = db.get(Pool, pool_id)
+    source = pool_source(pool) if pool else None
+    if source is None:
+        raise PoolDomainError(
+            status_code=404,
+            code="sleeper_pool_not_found",
+            message="This pool is not linked to Sleeper.",
+        )
+    payload = SleeperPoolRequest(url=source.url, username=source.username)
+    db.rollback()  # Release the read transaction while waiting on Sleeper.
+    info = await preview_pool(payload)
+    return pool_out(save_import(db, info, expected_pool_id=pool_id))
 
 
 @router.get("/pools/overview", response_model=PoolOverviewOut)
@@ -138,12 +170,33 @@ def update_pool(pool_id: int, payload: PoolCreate, db: Db) -> PoolOut:
                 "stays consistent. Create a new pool for different rules."
             ),
         )
+    if pool.sleeper_league_id and (
+        rules_changed or pool.pool_type != payload.pool_type or pool.season != payload.season
+    ):
+        raise PoolDomainError(
+            status_code=409,
+            code="sleeper_managed_rules",
+            message="Refresh Sleeper details to update this pool's rules and season.",
+        )
     pool.name = payload.name
     pool.pool_type = payload.pool_type
     pool.season = payload.season
     pool.rules_json = payload.rules.model_dump_json()
     db.commit()
     return pool_out(pool)
+
+
+@router.delete("/pools/{pool_id}", status_code=204)
+def delete_pool(pool_id: int, db: Db) -> Response:
+    # Foreign keys cascade to entries, weekly cards, and picks, not shared NFL games.
+    result = db.execute(delete(Pool).where(Pool.id == pool_id))
+    if result.rowcount == 0:
+        db.rollback()
+        raise PoolDomainError(
+            status_code=404, code="pool_not_found", message="The pool was not found."
+        )
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/pools/{pool_id}/entries", response_model=PoolEntryOut, status_code=201)

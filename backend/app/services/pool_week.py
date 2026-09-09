@@ -419,6 +419,7 @@ def evaluate_weekly_card(
             "season": pool.season,
             "pool_type": pool.pool_type,
             "rules": rules.model_dump(),
+            "sleeper": json.loads(pool.sleeper_snapshot_json) if pool.sleeper_league_id else None,
         },
         "week": {
             "number": week,
@@ -552,6 +553,9 @@ def pool_overview(
                 "season": pool.season,
                 "pool_type": pool.pool_type,
                 "rules": PoolRules.model_validate(json.loads(pool.rules_json)).model_dump(),
+                "sleeper": json.loads(pool.sleeper_snapshot_json)
+                if pool.sleeper_league_id
+                else None,
                 "suggested_week": week,
                 "inactive_entry_count": sum(not entry.active for entry in pool.entries),
                 "schedule": schedule,

@@ -15,6 +15,7 @@ import { useLatestCardAutosave } from "./useLatestCardAutosave";
 import { weeklyCardProgress } from "../../ui-display-state";
 import { PoolAssistant } from "./PoolAssistant";
 import { PoolIntelligence } from "./PoolIntelligence";
+import { SleeperPoolDetails } from "./SleeperPoolImport";
 
 const toDraft = (card: WeeklyCard): WeeklyPickDraft[] => card.picks
   .filter((pick) => Boolean(pick.game_id))
@@ -264,6 +265,7 @@ function PoolWeekWorkspace() {
       return <button role="tab" aria-selected={entry.id === entryId} className={entry.id === entryId ? "active" : ""} onClick={() => setSearch({ entry_id: String(entry.id) })} key={entry.id}><span>{entry.name}</span><small>{summary?.missing_count ? `${summary.missing_count} missing` : summary ? "Complete" : "Entry"}</small></button>;
     })}</div>
 
+    {data.pool.sleeper && <SleeperPoolDetails poolId={poolId} info={data.pool.sleeper} />}
     <PoolAssistant key={`${poolId}:${entryId}:${week}`} data={data} busy={["waiting", "saving", "error", "conflict"].includes(autosave.state)} onApplying={setApplyingAI} onReadiness={setSourcesReady} />
     {workspace.error && <p role="alert">The updated card could not load. Cached games and picks are shown. {workspace.error.message}</p>}
     {data.configuration_errors.length > 0 && <div className="error-panel">Pool settings need attention: {data.configuration_errors.map((item) => item.code.replaceAll("_", " ")).join(", ")}.</div>}

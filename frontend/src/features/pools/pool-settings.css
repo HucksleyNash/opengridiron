@@ -1,0 +1,8 @@
+.pool-delete { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.pool-delete .pool-delete-button { color: var(--red); border-color: var(--red); background: transparent; min-height: 44px; }
+.pool-delete .pool-delete-button.confirm { color: var(--forest); background: var(--red); }
+.pool-delete-confirmation { margin-top: 16px; overflow-wrap: anywhere; }
+.pool-delete-confirmation h3 { font-size: 20px; margin-bottom: 8px; }
+.pool-delete-confirmation p { font-size: 16px; line-height: 1.5; max-width: 72ch; }
+.pool-delete-confirmation .action-row { margin-top: 16px; gap: 12px; }
+.pool-delete-confirmation button { min-height: 44px; }

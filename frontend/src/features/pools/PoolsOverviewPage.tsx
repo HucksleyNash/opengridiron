@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, ChevronRight, Clock3, Plus, RefreshCw, Trophy } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { CardState, Pool } from "../../types";
+import { SleeperPoolDetails, SleeperPoolImport } from "./SleeperPoolImport";
+import { DeletePoolControl } from "./DeletePoolControl";
 import {
   createPool,
   createPoolEntry,
@@ -34,6 +36,8 @@ export function PoolsOverviewPage() {
   const [importErrors, setImportErrors] = useState<Record<number, Error>>({});
   const [entryNames, setEntryNames] = useState<Record<number, string>>({});
   const [showSettings, setShowSettings] = useState(false);
+  const settingsButton = useRef<HTMLButtonElement>(null);
+  const [deletedPoolName, setDeletedPoolName] = useState("");
   const [poolDraft, setPoolDraft] = useState({
     name: "",
     pool_type: "survivor" as "survivor" | "confidence",
@@ -122,10 +126,13 @@ export function PoolsOverviewPage() {
   return <>
     <header className="page-header pool-page-header">
       <div><span className="eyebrow">Winner · loser · confidence</span><h1>Pool week</h1><p>Open this week, finish every entry, and let the schedule stay current automatically.</p></div>
-      <button className="ghost" onClick={() => setShowSettings((value) => !value)}><Plus size={16} />Pool settings</button>
+      <button ref={settingsButton} className="ghost" aria-expanded={showSettings} onClick={() => setShowSettings((value) => !value)}><Plus size={16} />Pool settings</button>
     </header>
 
+    {deletedPoolName && <p role="status">“{deletedPoolName}” deleted from Open Gridiron.</p>}
+
     {showSettings && <section className="panel pool-settings-panel">
+      <SleeperPoolImport />
       <div className="panel-title"><div><span className="eyebrow">Setup</span><h2>Add a pool</h2></div></div>
       <form className="pool-settings-form" onSubmit={(event) => { event.preventDefault(); addPool.mutate(); }}>
         <label className="field"><span>Name</span><input value={poolDraft.name} onChange={(event) => setPoolDraft({ ...poolDraft, name: event.target.value })} required /></label>
@@ -151,6 +158,7 @@ export function PoolsOverviewPage() {
             <div className="pool-week-number"><span>Week</span><strong>{pool.suggested_week}</strong></div>
           </div>
           <ScheduleBadge state={pool.schedule.state} />
+          {pool.sleeper && <SleeperPoolDetails poolId={pool.id} info={pool.sleeper} />}
           {isImporting && <p className="schedule-message"><RefreshCw className="spin" size={14} /> Loading the {pool.season} NFL schedule…</p>}
           {importError && <div className="schedule-error"><AlertTriangle size={15} /><span>{importError.message}</span><button onClick={() => void runImport(pool.season, "retry")}>Retry</button></div>}
           <div className="pool-entry-list">
@@ -165,6 +173,10 @@ export function PoolsOverviewPage() {
             <input aria-label={`New entry for ${pool.name}`} value={entryNames[pool.id] ?? ""} onChange={(event) => setEntryNames((current) => ({ ...current, [pool.id]: event.target.value }))} placeholder="Main entry" />
             <button disabled={addEntry.isPending}><Plus size={14} />Add entry</button>
           </form>
+          {showSettings && <DeletePoolControl pool={pool} onDeleted={(name) => {
+            setDeletedPoolName(name);
+            settingsButton.current?.focus();
+          }} />}
         </article>;
       })}
     </div>

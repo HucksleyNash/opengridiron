@@ -163,11 +163,14 @@ class Game(Base):
 
 class Pool(Base):
     __tablename__ = "pools"
+    __table_args__ = (UniqueConstraint("sleeper_league_id", name="uq_pool_sleeper_league"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(160))
     pool_type: Mapped[str] = mapped_column(String(30))
     season: Mapped[int] = mapped_column(Integer)
     rules_json: Mapped[str] = mapped_column(Text)
+    sleeper_league_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    sleeper_snapshot_json: Mapped[str] = mapped_column(Text, default="{}", server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     entries: Mapped[list[PoolEntry]] = relationship(
         back_populates="pool", cascade="all, delete-orphan"
@@ -176,10 +179,14 @@ class Pool(Base):
 
 class PoolEntry(Base):
     __tablename__ = "pool_entries"
+    __table_args__ = (
+        UniqueConstraint("pool_id", "sleeper_roster_id", name="uq_pool_sleeper_roster"),
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     pool_id: Mapped[int] = mapped_column(ForeignKey("pools.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(160))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sleeper_roster_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     pool: Mapped[Pool] = relationship(back_populates="entries")
     picks: Mapped[list[PoolPick]] = relationship(
         back_populates="entry", cascade="all, delete-orphan"

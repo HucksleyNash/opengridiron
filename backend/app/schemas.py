@@ -258,6 +258,39 @@ class PoolCreate(BaseModel):
     rules: PoolRules = Field(default_factory=PoolRules)
 
 
+class SleeperPoolRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=300)
+    username: str = Field(default="", max_length=80)
+
+
+class SleeperEntryInfo(BaseModel):
+    roster_id: int
+    name: str
+    eliminated: bool | None = None
+
+
+class SleeperPoolInfo(BaseModel):
+    league_id: str
+    url: str
+    name: str
+    season: int
+    status: str
+    current_week: int | None
+    capacity: int | None
+    participant_count: int
+    entry_count: int
+    commissioners: list[str]
+    username: str
+    user_id: str | None
+    entries: list[SleeperEntryInfo]
+    rules: PoolRules | None
+    settings: dict[str, Any]
+    scoring_settings: dict[str, Any]
+    fetched_at: datetime
+    warnings: list[str]
+    unsupported: list[str]
+
+
 class PoolOut(ORMModel):
     id: int
     name: str
@@ -265,6 +298,7 @@ class PoolOut(ORMModel):
     season: int
     rules: PoolRules
     entry_count: int = 0
+    sleeper: SleeperPoolInfo | None = None
 
 
 class PoolEntryCreate(BaseModel):
@@ -336,6 +370,7 @@ class PoolOverviewItem(BaseModel):
     season: int
     pool_type: Literal["survivor", "confidence"]
     rules: PoolRules
+    sleeper: SleeperPoolInfo | None = None
     suggested_week: int
     inactive_entry_count: int
     schedule: ScheduleStatus

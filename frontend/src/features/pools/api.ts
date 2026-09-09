@@ -1,5 +1,5 @@
-import { api, post, put } from "../../api";
-import type { Pool, PoolEntry, PoolOverview, PoolWeek, WeeklyCard, WeeklyPickDraft } from "../../types";
+import { api, post, put, remove } from "../../api";
+import type { Pool, PoolEntry, PoolOverview, PoolWeek, SleeperPoolInfo, WeeklyCard, WeeklyPickDraft } from "../../types";
 
 export const poolKeys = {
   overview: ["pool-overview"] as const,
@@ -9,6 +9,14 @@ export const poolKeys = {
 };
 
 export const getPoolOverview = () => api<PoolOverview>("/pools/overview");
+
+export type SleeperPoolRequest = { url: string; username: string };
+export const previewSleeperPool = (payload: SleeperPoolRequest) =>
+  post<SleeperPoolInfo>("/integrations/sleeper/pools/preview", payload);
+export const importSleeperPool = (payload: SleeperPoolRequest) =>
+  post<Pool>("/integrations/sleeper/pools/import", payload);
+export const refreshSleeperPool = (poolId: number) =>
+  post<Pool>(`/pools/${poolId}/sleeper/refresh`);
 
 export const getPoolWeek = (poolId: number, entryId: number, week: number) =>
   api<PoolWeek>(`/pools/${poolId}/weeks/${week}?entry_id=${entryId}`);
@@ -26,6 +34,8 @@ export const createPoolEntry = (poolId: number, name: string) =>
 
 export const createPool = (payload: Omit<Pool, "id" | "entry_count">) =>
   post<Pool>("/pools", payload);
+
+export const deletePool = (poolId: number) => remove(`/pools/${poolId}`);
 
 export const saveWeeklyCard = (
   entryId: number,

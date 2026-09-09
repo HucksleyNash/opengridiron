@@ -47,7 +47,7 @@ jobs:
       - working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium
       - working-directory: frontend
-        run: pnpm exec playwright test analysis-context.spec.ts weekly-analysis.spec.ts pool-week.spec.ts draft-room.spec.ts --project=chromium
+        run: pnpm exec playwright test analysis-context.spec.ts weekly-analysis.spec.ts pool-week.spec.ts draft-room.spec.ts sleeper-pools.spec.ts --project=chromium
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

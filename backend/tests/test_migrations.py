@@ -31,6 +31,49 @@ def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
     return {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
 
 
+def test_sleeper_migration_preserves_manual_pools_and_enforces_identity(tmp_path: Path) -> None:
+    import pytest
+
+    database = tmp_path / "sleeper.sqlite3"
+    _alembic(database, "upgrade", "0011_ai_context")
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "INSERT INTO pools (id, name, pool_type, season, rules_json, created_at) "
+            "VALUES (1, 'Manual pool', 'survivor', 2026, '{}', '2026-09-08')"
+        )
+        connection.execute(
+            "INSERT INTO pool_entries (id, pool_id, name, active) VALUES (1, 1, 'Manual', 1)"
+        )
+        connection.execute(
+            "INSERT INTO pool_picks (entry_id, week, slot, team) VALUES (1, 1, 1, 'BUF')"
+        )
+    _alembic(database, "upgrade", "head")
+    _alembic(database, "upgrade", "head")
+    with sqlite3.connect(database) as connection:
+        assert connection.execute(
+            "SELECT name, sleeper_league_id, sleeper_snapshot_json FROM pools WHERE id = 1"
+        ).fetchone() == ("Manual pool", None, "{}")
+        connection.execute("UPDATE pools SET sleeper_league_id = '123' WHERE id = 1")
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO pools "
+                "(name, pool_type, season, rules_json, created_at, sleeper_league_id) "
+                "VALUES ('Duplicate', 'survivor', 2026, '{}', '2026-09-08', '123')"
+            )
+        connection.execute("UPDATE pool_entries SET sleeper_roster_id = 30 WHERE id = 1")
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO pool_entries (pool_id, name, active, sleeper_roster_id) "
+                "VALUES (1, 'Duplicate', 1, 30)"
+            )
+    _alembic(database, "downgrade", "0011_ai_context")
+    with sqlite3.connect(database) as connection:
+        assert "sleeper_league_id" not in _columns(connection, "pools")
+        assert "sleeper_roster_id" not in _columns(connection, "pool_entries")
+        assert connection.execute("SELECT name FROM pools").fetchone() == ("Manual pool",)
+        assert connection.execute("SELECT team FROM pool_picks").fetchone() == ("BUF",)
+
+
 def test_my_team_migration_preserves_existing_leagues_and_rosters(tmp_path: Path) -> None:
     database = tmp_path / "my-team.sqlite3"
     _alembic(database, "upgrade", "head")

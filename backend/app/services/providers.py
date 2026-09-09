@@ -1386,6 +1386,9 @@ def build_dossier(
                 "type": pool.pool_type,
                 "season": pool.season,
                 "rules": json.loads(pool.rules_json),
+                "sleeper": (
+                    json.loads(pool.sleeper_snapshot_json) if pool.sleeper_league_id else None
+                ),
                 "created_at": _iso(pool.created_at),
                 "entries": [
                     {
