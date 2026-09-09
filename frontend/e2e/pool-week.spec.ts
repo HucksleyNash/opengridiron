@@ -196,17 +196,23 @@ test("opening and returning to a pool checks sources and supports a manual refre
   const mocked = await mockApp(page);
   await page.goto(`/pools/${mocked.poolId}/weeks/1?entry_id=${mocked.entryId}`);
   await expect.poll(mocked.getCheckIns).toBeGreaterThan(0);
+  const refresh = page.getByRole("button", { name: "Refresh data", exact: true });
+  await expect(refresh).toBeEnabled();
   const first = mocked.getCheckIns();
-  await page.getByRole("button", { name: "Refresh data" }).click();
+  await refresh.click();
   await expect.poll(mocked.getCheckIns).toBeGreaterThan(first);
+  // Settle the manual refresh so its follow-up query cannot count as a tab-return check.
+  await expect(refresh).toBeEnabled();
   const second = mocked.getCheckIns();
   await page.evaluate(() => {
+    // TanStack Query listens on window; document visibility events must bubble to it.
     Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
-    document.dispatchEvent(new Event("visibilitychange"));
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
-    document.dispatchEvent(new Event("visibilitychange"));
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
   });
   await expect.poll(mocked.getCheckIns).toBeGreaterThan(second);
+  await expect(refresh).toBeEnabled();
 });
 
 for (const confidence of [false, true]) {
