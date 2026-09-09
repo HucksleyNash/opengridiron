@@ -19,7 +19,7 @@ RUN groupadd --gid 10001 football \
     && mkdir -p /data /app/frontend \
     && chown -R football:football /data /app
 
-COPY pyproject.toml ./
+COPY pyproject.toml README.md LICENSE NOTICE ./
 COPY backend/ ./backend/
 RUN python -m pip install --no-cache-dir --upgrade "pip>=26.2.1,<27" \
     && python -m pip install --no-cache-dir ".[push,ml]"

@@ -85,8 +85,9 @@ is deliberate input proving that the URL validator rejects embedded credentials.
 - Cryptography no longer publishes Intel macOS or 32-bit Windows wheels. Docker
   remains the documented default installation path; native installs on those
   platforms need separate compatibility assessment.
-- No license has been selected. Choose explicit licensing terms before inviting
-  external reuse.
+- At the initial audit, no license had been selected. Resolved September 8, 2026:
+  the project now uses [Apache 2.0](../LICENSE), with [project attribution](../NOTICE)
+  and separate provider terms documented in the README.
 
 Detailed machine-specific logs and scan output are retained locally under the ignored
 `.gstack/repository-audit/` directory. This maintained summary is the audit artifact

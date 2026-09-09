@@ -1,6 +1,8 @@
 # Open Gridiron
 
-Open Gridiron is a private, self-hosted PWA for fantasy football, survivor/loser pools, confidence pools, NFL news monitoring, and evidence-grounded AI analysis. It is designed for one owner managing multiple leagues and pool entries.
+Open Gridiron is an open-source, self-hosted progressive web app (PWA) for fantasy football, survivor/loser pools, confidence pools, NFL news monitoring, and evidence-grounded AI analysis. Each installation is designed for one owner managing multiple leagues and pool entries, with their data stored on their own server.
+
+Licensed under [Apache 2.0](LICENSE). Start with Docker below, or see [Development](#development), [Contributing](#contributing), and [License and third-party sources](#license-and-third-party-sources).
 
 The app is useful before Yahoo API access is approved: leagues, players, projections, games, pool rules, entries, and picks all have manual workflows. Yahoo data can be synchronized read-only through an authenticated browser-session scraper now and through OAuth after Yahoo approves an API client.
 
@@ -9,10 +11,14 @@ The app is useful before Yahoo API access is approved: leagues, players, project
 Requirements: Docker Desktop or Docker Engine with Compose.
 
 ```bash
+git clone https://github.com/HucksleyNash/opengridiron.git
+cd opengridiron
 docker compose up --build
 ```
 
 Open [http://localhost:8787](http://localhost:8787). The local profile publishes only on `127.0.0.1`; authentication is disabled only in this loopback profile. Complete the short owner setup, then create a manual league or pool.
+
+Manual workflows and deterministic recommendations work without an AI account or Yahoo API approval. AI analysis is optional and requires a configured provider; hosted providers may charge for usage. For access from another device, use one of the authenticated [hosted profiles](#hosted-profiles).
 
 Data, cached nflverse files, encrypted settings, browser subscriptions, and seven rolling backups live in the `football-data` Docker volume. The local encryption master secret is generated once inside that volume.
 
@@ -33,6 +39,7 @@ name recorded when they were generated.
 - Clickable roster and lineup players with a synopsis, projection context, official NFL injury entries, and recent player-specific articles. Reports load on demand without an API key; source dates, partial failures, and cached results are labeled.
 - Deterministic floor/balanced/ceiling lineup optimization, period-aware waiver comparisons, supported trade deltas, and a live draft board. FAAB bids are withheld without budget and winning-bid evidence.
 - Winner or loser survivor pools, straight-up or ATS rules, saved pick receipts, team reuse enforcement, constrained season allocation and multiple-entry diversification.
+- Preview, import, and refresh supported Sleeper survivor pools through its public API, including rules and owner entry matching; submit actual picks on Sleeper.
 - Straight-up or ATS confidence pools with expected-points weight assignment.
 - League-specific raw-stat scoring, conservative position uncertainty, projection imports, and manual/model/market game probabilities with no-vig helpers.
 - OpenAI Responses, Anthropic Messages, OpenAI-compatible local endpoints, and an isolated Codex CLI provider, all validated against one JSON Schema.
@@ -88,6 +95,28 @@ so they can be retried. Migration `0008` adds the report table without rewriting
 values. See the [implementation design](docs/designs/league-analysis.md).
 
 ## Pool decisions and results
+
+To remove a pool, open **Pools → Pool settings**, then choose **Delete pool** below
+that pool. Review its name and choose **Delete permanently**. This removes the local
+pool, all its entries, and their saved picks. Deleting an imported pool does not affect
+the original pool on Sleeper.
+
+Under **Pool settings → Import from Sleeper**, paste a Sleeper league URL or ID.
+Enter your Sleeper username to match your entries, then select **Preview pool** and
+**Import pool**. No login or API key is required. Supported regular-season NFL survivor
+pools import their name, season, weekly pick limit, team-use limit, commissioner,
+participant/entry counts, and your entry IDs. Sleeper ties eliminate and picks lock at
+kickoff. Capacity is shown separately from actual participants.
+
+**Sleeper pool details → Refresh Sleeper details** updates the existing pool without
+duplicating entries or overwriting local picks. Rules and season cannot change after
+local picks are saved. Revives, spread scoring (which requires Sleeper's locked lines),
+and unknown rule configurations are shown in the preview but cannot be imported.
+Source status is reported as of the last refresh, separately from local grading.
+
+**Sleeper picks and pick history are not imported.** Team-use checks and season plans
+only include picks saved here; compare them with your Sleeper history. Submit actual picks on
+Sleeper. See [import scope and verified sources](docs/designs/sleeper-pool-import.md).
 
 Opening a pool week, returning to its browser tab, or leaving it visible for five
 minutes checks the latest nflverse schedule, probabilities, lines and results plus
@@ -240,17 +269,28 @@ pnpm install --frozen-lockfile
 pnpm test
 pnpm run build
 pnpm exec playwright install chromium
-pnpm exec playwright test e2e/draft-room.spec.ts
+pnpm exec playwright test analysis-context.spec.ts weekly-analysis.spec.ts pool-week.spec.ts draft-room.spec.ts sleeper-pools.spec.ts --project=chromium
+cd ..
 ```
 
-Run the API locally with:
+The browser command above matches the CI Chromium journeys. Use `pnpm test:e2e` from `frontend` to run the full browser suite, including tablet and mobile projects. Optional backend features can be installed with `.venv/bin/pip install -e '.[dev,ml,push]'`; the Docker image includes the forecasting and Web Push extras.
+
+From the repository root, initialize or migrate the local database and run the API:
 
 ```bash
-DATA_DIR=./data DATABASE_URL=sqlite:///./data/football.db \
-  .venv/bin/uvicorn app.main:app --app-dir backend --reload --port 8000
+mkdir -p data
+export DATA_DIR=./data DATABASE_URL=sqlite:///./data/football.db
+.venv/bin/alembic -c backend/alembic.ini upgrade head
+.venv/bin/uvicorn app.main:app --app-dir backend --reload --port 8000
 ```
 
 Then run `pnpm run dev` in `frontend`; Vite proxies `/api` to port 8000.
+
+## Contributing
+
+Bug reports and pull requests are welcome at [GitHub](https://github.com/HucksleyNash/opengridiron). Include reproduction steps, expected behavior, and relevant logs with credentials and personal league data removed. Discuss substantial features in an issue before implementing them.
+
+Use the development checks above, add regression coverage for behavior changes, and follow [DESIGN.md](DESIGN.md) for interface changes. Keep generated files and runtime data out of commits. Contributions are accepted under the project's [Apache 2.0 license](LICENSE).
 
 ## Repository contents
 
@@ -296,6 +336,8 @@ docker compose -f compose.vpn.yaml --env-file .env up -d --build
 
 Set `VPN_BIND_ADDRESS` to the exact private interface address and `PUBLIC_BASE_URL` to its private HTTPS URL (for example, a Tailscale HTTPS name). This profile has no public proxy.
 
+The app listens on plain HTTP at that private address on port 8787. Configure a private HTTPS reverse proxy or Tailscale Serve to forward the chosen HTTPS URL to it; setting `PUBLIC_BASE_URL` alone does not provide TLS.
+
 See [architecture and operations](docs/architecture.md) for data flow, security boundaries, backup restoration, and API groups.
 
 See [refresh controls and full recovery](docs/operations-recovery.md) for scheduled Yahoo/news/nflverse collection, durable cooldowns, and an encrypted bundle containing the database, master secret, Codex home and deployment configuration. Rolling SQLite backups alone cannot recover every credential.
@@ -303,3 +345,9 @@ See [refresh controls and full recovery](docs/operations-recovery.md) for schedu
 ## Important model boundaries
 
 Probabilities and fantasy scores are deterministic inputs to AI analysis. AI explains them, connects relevant attributed news, and identifies missing or stale data; it is not allowed to invent new odds, injuries, or projections. ATS performance should be judged only from time-ordered holdout results—there is no claim of a durable betting edge.
+
+## License and third-party sources
+
+Copyright 2026 HucksleyNash and contributors. Open Gridiron's original code and documentation are licensed under the [Apache License, Version 2.0](LICENSE); see [NOTICE](NOTICE) for project attribution. This permits personal and commercial use, modification, and redistribution under the license's terms, including its notice requirements and contributor patent grant. Modified versions may remain closed source.
+
+Dependencies retain their own licenses. The project license does not grant rights to third-party football data, news excerpts, logos, trademarks, or provider services. Follow each source's terms and attribution requirements. In particular, [Sleeper's API](https://docs.sleeper.com/) is free for non-commercial use; commercial API use requires discussing licensing with Sleeper. See [football data sources](docs/football-data-sources.md) and the [Yahoo scraper guide](docs/yahoo-scraper.md) for integration details and limitations.

@@ -6,6 +6,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /runner
+COPY LICENSE NOTICE ./
 COPY codex_runner/requirements.txt ./requirements.txt
 RUN python3 -m pip install --break-system-packages --no-cache-dir --upgrade "pip>=26.2.1,<27" \
     && python3 -m pip install --break-system-packages --no-cache-dir -r requirements.txt

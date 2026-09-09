@@ -1,7 +1,8 @@
 # Free football sources
 
-Researched and endpoint-tested on September 7, 2026. Open Gridiron is a private,
-non-commercial workstation. These additions require no account, cookie, API key,
+Researched and endpoint-tested on September 7, 2026 for personal, non-commercial
+installations of Open Gridiron. The project's open-source license does not override
+provider terms, including Sleeper's commercial-use restrictions. These additions require no account, cookie, API key,
 paid subscription, or browser automation.
 
 ## Added sources

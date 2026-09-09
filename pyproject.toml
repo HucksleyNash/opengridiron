@@ -1,11 +1,14 @@
 [build-system]
-requires = ["setuptools>=75", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "opengridiron"
 version = "0.1.0"
 description = "Self-hosted fantasy football and NFL pool decision support."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.14,<2",
@@ -20,6 +23,10 @@ dependencies = [
   "sqlalchemy>=2.0,<3",
   "uvicorn[standard]>=0.34,<1",
 ]
+
+[project.urls]
+Repository = "https://github.com/HucksleyNash/opengridiron"
+Issues = "https://github.com/HucksleyNash/opengridiron/issues"
 
 [project.optional-dependencies]
 dev = [
