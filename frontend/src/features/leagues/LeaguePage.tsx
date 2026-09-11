@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
@@ -8,19 +8,20 @@ import { formatSourceLabel } from "../../ui-display-state";
 import "./league.css";
 import PerformanceDiagnostics from "./PerformanceDiagnostics";
 import { PlayerDetailsButton } from "./PlayerDetails";
-import { PlayerProjections } from "./PlayerProjections";
+import { LeagueProjectionLeaders, SourceProjectionTable } from "./PlayerProjections";
+import { RosterTable } from "./RosterTable";
 import { DetailTabs } from "./DetailTabs";
 import { MyTeamSetting } from "./MyTeamSetting";
 import { LeagueAnalysisPanel } from "../league-analysis/LeagueAnalysisPanel";
 import {
   LINEUP_MODES, lineupChanges, normalizePosition, orderedRoster,
-  points, projectionPeriod, rosterGroup, signedPoints, slotLabel, slotOrder,
+  points, projectionPeriod, sharedProjectionContext, signedPoints, slotLabel, scoringLabel,
   type LineupMode, type WeeklyLineup,
 } from "./league-display";
 
 type DraftSession = { kind: string; status: string; completed_at?: string; teams: { name: string; is_owner: boolean }[] };
 type SyncResult = { players: number; draft_picks?: number; partial?: number; errors?: string[] };
-type WaiverRecommendation = { player_id: number; player: Player; rank: number; expected_value: number; confidence: number; rationale: string[] };
+type WaiverRecommendation = { player_id: number; player: Player; rank: number; expected_value: number; confidence: number; rationale: string[]; ranking_basis?: "weekly_lineup_gain" | "source_points" | null };
 type WaiverPage = { items: WaiverRecommendation[]; total: number; available: number; next_offset: number | null; facets: { teams: string[]; statuses: string[]; positions: string[] } };
 const EMPTY_FORM = { name: "", pro_team: "", position: "RB", ownership: "FA", rostered_by: "", current_slot: "", projected_points: 0, floor: 0, ceiling: 0, ros_value: "" };
 const FORM_LABELS: Record<keyof typeof EMPTY_FORM, string> = {
@@ -30,7 +31,8 @@ const FORM_LABELS: Record<keyof typeof EMPTY_FORM, string> = {
 };
 const EMPTY_FILTERS = { search: "", role: "", team: "", availability: "", status: "" };
 const PAGE_SIZE = 10;
-const LEAGUE_TABS = [{ id: "overview", label: "Overview" }, { id: "forecast", label: "Forecast" }] as const;
+const LEAGUE_TABS = [{ id: "roster", label: "Roster" }, { id: "waivers", label: "Waivers" }, { id: "analysis", label: "Analysis" }] as const;
+type LeagueTab = typeof LEAGUE_TABS[number]["id"];
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="field"><span>{label}</span>{children}</label>;
@@ -57,18 +59,7 @@ function PlayerIdentity({ player, children }: { player: Player; children?: React
   </span>;
 }
 
-function RosterTable({ roster, label, weekly, loading }: { roster: Player[]; label: string; weekly?: WeeklyLineup; loading: boolean }) {
-  return <table className="league-roster-table"><caption className="sr-only">{label}. {weekly ? `Week ${weekly.week}` : "Weekly"} projections, independent of the lineup objective.</caption>
-    <thead><tr><th scope="col">Slot</th><th scope="col">Player / status</th><th scope="col" className="numeric">{weekly ? `Week ${weekly.week}` : "Weekly"} pts</th></tr></thead>
-    <tbody>{roster.map((player) => {
-      const forecast = weekly?.forecasts.find((item) => item.player_id === player.id);
-      return <tr key={player.id}><td className="league-slot">{slotLabel(player.current_slot)}</td>
-        <td><PlayerIdentity player={player} /></td><td className="numeric" title={forecast?.reason || undefined}>{loading ? "Loading…" : points(forecast?.points)}</td></tr>;
-    })}</tbody>
-  </table>;
-}
-
-function WaiverWatchlist({ leagueId, rosterSlots, showReplay, teamName }: { leagueId: number; rosterSlots: string[]; showReplay: boolean; teamName: string }) {
+function WaiverWatchlist({ leagueId, rosterSlots, teamName, active }: { leagueId: number; rosterSlots: string[]; teamName: string; active: boolean }) {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [search, setSearch] = useState("");
@@ -79,7 +70,7 @@ function WaiverWatchlist({ leagueId, rosterSlots, showReplay, teamName }: { leag
   const query = useInfiniteQuery({ queryKey, initialPageParam: 0,
     queryFn: ({ pageParam, signal }) => api<WaiverPage>(`/leagues/${leagueId}/waivers/page?${new URLSearchParams({ ...effectiveFilters, offset: String(pageParam), limit: String(PAGE_SIZE) })}`, { signal }),
     getNextPageParam: (lastPage) => lastPage.next_offset ?? undefined,
-    placeholderData: keepPreviousData, staleTime: 30_000,
+    placeholderData: keepPreviousData, staleTime: 30_000, enabled: active,
   });
   const first = query.data?.pages[0];
   const visible = query.data?.pages.flatMap((page) => page.items) || [];
@@ -93,34 +84,41 @@ function WaiverWatchlist({ leagueId, rosterSlots, showReplay, teamName }: { leag
   const statuses = first?.facets.statuses || [];
   const hasFilters = Object.values(filters).some(Boolean);
 
+  const gainMode = Boolean(visible.length) && visible.every((item) => item.ranking_basis === "weekly_lineup_gain");
+  const source = sharedProjectionContext(visible.map((item) => item.player));
+  const metric = gainMode ? "Modeled lineup gain" : source.period?.includes("Full season") ? "Season pts" : "Source pts";
   return <section className="league-section" aria-labelledby="waiver-watchlist-heading">
-    <div className="league-section-heading"><h2 id="waiver-watchlist-heading">Waiver watchlist</h2>{showReplay && <Link to={`/draft/${leagueId}`}>Open draft replay</Link>}</div>
-    <p className="league-help">Available players for {teamName || "this league"}. Matching weekly inputs support starting-lineup gains; other periods are a review list. Filter by position to compare similar players.</p>
+    <div className="league-section-heading"><h2 id="waiver-watchlist-heading">Available players</h2></div>
+    <p className="league-help">{gainMode ? `Modeled weekly starting-lineup gain for ${teamName}. Review availability and long-term drop cost before acting.` : "Source projection order. Weekly lineup impact unavailable; these ranks do not establish an add recommendation."}</p>{!gainMode && visible.length > 0 && <p className="league-caption">{source.source || "Multiple sources"} · {source.period || "Mixed projection periods"}</p>}
     <details className="league-disclosure league-method"><summary>How rankings and estimates work</summary>
       <p>Matching weekly projections and scoring support a modeled starting-lineup gain for the selected team. Otherwise the list displays stored projection values for review; mixed periods cannot establish an add recommendation.</p>
       <p>FAAB bids are withheld until budget and comparable winning-bid evidence are available. Unavailable players are excluded. Prediction confidence is not calibrated.</p>
       <p>Check source age, scoring, period, game locks and long-term drop cost before acting. Missing rest-of-season values stay missing.</p>
     </details>
-    <div className="league-waiver-filters">
+    <div className="league-waiver-primary-filters">
       <Field label="Search players"><input type="search" placeholder="Name, NFL team, or position" value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} /></Field>
       <Field label="Position / role"><select value={filters.role} onChange={(event) => updateFilter("role", event.target.value)}><option value="">All roles</option>{roles.map((role) => <option key={role} value={role}>{role === "DEF" ? "DEF / D/ST" : role}</option>)}</select></Field>
+    </div>
+    <details className="league-disclosure league-extra-filters"><summary>More filters{[filters.team, filters.availability, filters.status].filter(Boolean).length > 0 ? ` · ${[filters.team, filters.availability, filters.status].filter(Boolean).length} active` : ""}</summary><div className="league-waiver-filters">
       <Field label="NFL team"><select value={filters.team} onChange={(event) => updateFilter("team", event.target.value)}><option value="">All teams</option>{teams.map((team) => <option key={team}>{team}</option>)}</select></Field>
       <Field label="Availability"><select value={filters.availability} onChange={(event) => updateFilter("availability", event.target.value)}><option value="">All available</option><option value="free-agent">Free agents</option><option value="waivers">On waivers</option></select></Field>
       <Field label="Player status"><select value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}><option value="">All statuses</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select></Field>
-    </div>
+      </div>
+    </details>
     <div className="league-results"><span role="status">{busy ? "Loading available-player rankings…" : query.error && !first ? "Rankings unavailable" : `Showing ${visible.length} of ${total} matching players · ${available} available`}</span>{hasFilters && <button type="button" className="ghost" onClick={clearFilters}>Clear filters</button>}</div>
     {query.error && <><Failure title="Could not load waiver rankings" error={query.error} /><button type="button" onClick={() => void (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch())}>Retry watchlist</button></>}
     {busy ? <p className="league-help">Loading waiver watchlist</p> : !first ? null : !available ? <p>No available players. Sync the league or import free agents using the data tools below.</p> : !total ? <p>No players match your filters.</p> : <>
       <div role="region" aria-label="Waiver player results">
-        <table className="league-waiver-table" role="table"><caption className="sr-only">Overall league-wide rank, player availability, rank score, and ranking details. Overall ranks remain unchanged when filtered.</caption>
-          <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col">Overall rank</th><th role="columnheader" scope="col">Player / availability</th><th role="columnheader" scope="col" className="numeric">Rank score</th><th role="columnheader" scope="col">Evidence & estimates</th></tr></thead>
+        <table className="league-waiver-table" role="table"><caption className="sr-only">Source rank or modeled lineup gain as labeled. Overall ranks remain unchanged when filtered; select Ranking details for evidence.</caption>
+          <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col">Overall rank</th><th role="columnheader" scope="col">Player / availability</th><th role="columnheader" scope="col" className="numeric">{metric}</th><th role="columnheader" scope="col">Evidence & estimates</th></tr></thead>
           <tbody role="rowgroup">{visible.map((item) => <tr key={item.player_id} role="row">
             <td role="cell" className="league-rank"><span className="league-mobile-label">Overall</span>{item.rank}</td>
             <td role="cell"><PlayerIdentity player={item.player}><span className="league-availability">{["W", "WAIVERS"].includes(item.player.ownership.toUpperCase()) ? "On waivers" : "Free agent"}</span></PlayerIdentity></td>
-            <td role="cell" className="numeric"><span className="league-mobile-label">Score</span>{points(item.expected_value)}</td>
+            <td role="cell" className="numeric"><span className="league-mobile-label">{metric}</span>{gainMode ? signedPoints(item.expected_value) : points(item.player.projected_points)}</td>
             <td role="cell" className="league-waiver-details">
-              <span className="league-waiver-estimate">{points(item.player.projected_points)} projected pts</span>
-              <span className="league-projection-period">{projectionPeriod(item.player.projection)}</span>
+              {gainMode && <span className="league-waiver-estimate">{points(item.player.projected_points)} source pts</span>}
+              {(!source.period || gainMode) && <span className="league-projection-period">{projectionPeriod(item.player.projection)}</span>}
+              {!source.source && <span className="league-projection-period">{item.player.projection?.source || "Source not recorded"}</span>}
               <PlayerDetailsButton player={item.player} initialTab="projections" ranking={item} label={`Ranking details for ${item.player.name}`}>Ranking details</PlayerDetailsButton>
             </td>
           </tr>)}</tbody>
@@ -134,10 +132,12 @@ function WaiverWatchlist({ leagueId, rosterSlots, showReplay, teamName }: { leag
 
 function LeagueWorkspace({ id, draftSuiteEnabled }: { id: number; draftSuiteEnabled: boolean }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get("tab") === "forecast" ? "forecast" : "overview";
-  const selectTab = (value: "overview" | "forecast") => setSearchParams((previous) => {
+  const requestedTab = searchParams.get("tab");
+  const tab: LeagueTab = requestedTab === "forecast" || requestedTab === "analysis" ? "analysis" : requestedTab === "waivers" ? "waivers" : "roster";
+  const [rosterView, setRosterView] = useState<"weekly" | "source">("weekly");
+  const selectTab = (value: LeagueTab) => setSearchParams((previous) => {
     const next = new URLSearchParams(previous);
-    if (value === "overview") next.delete("tab");
+    if (value === "roster") next.delete("tab");
     else next.set("tab", value);
     return next;
   });
@@ -169,7 +169,7 @@ function LeagueWorkspace({ id, draftSuiteEnabled }: { id: number; draftSuiteEnab
   const lineupQuery = useQuery({
     queryKey: ["weekly-lineup", id, mode, selectedTeam, weekChoice],
     queryFn: ({ signal }) => api<WeeklyLineup>(`/leagues/${id}/weekly-lineup?${new URLSearchParams({ mode, team_name: selectedTeam, ...(weekChoice ? { week: weekChoice } : {}) })}`, { signal }),
-    enabled: Boolean(selectedTeam) && !playersQuery.error, staleTime: 60_000,
+    enabled: tab === "roster" && Boolean(selectedTeam) && !playersQuery.error, staleTime: 60_000,
   });
   const weekly = lineupQuery.data;
   const lineup = useMemo(() => weekly ? { ...weekly, assignments: weekly.assignments.flatMap((item) => {
@@ -182,10 +182,8 @@ function LeagueWorkspace({ id, draftSuiteEnabled }: { id: number; draftSuiteEnab
   const [projectionForm, setProjectionForm] = useState({ source: "", period: "unknown", season: "", week: "", source_updated_at: "", scoring_basis: "unknown" });
   const [importFile, setImportFile] = useState<File | null>(null);
   const [syncCompletedAt, setSyncCompletedAt] = useState<string | null>(null);
-  const [announcement, setAnnouncement] = useState("");
-  useEffect(() => {
-    if (lineup) setAnnouncement(`${LINEUP_MODES[mode].label} Week ${lineup.week} lineup for ${selectedTeam}: ${points(lineup.projected_total)} points, ${signedPoints(lineup.projected_gain)} compared with current starters.`);
-  }, [lineup, mode, selectedTeam]);
+  const toolsDisclosure = useRef<HTMLDetailsElement>(null);
+  const announcement = lineup && !lineupError ? `${LINEUP_MODES[mode].label} Week ${lineup.week} lineup for ${selectedTeam}: ${points(lineup.projected_total)} points, ${signedPoints(lineup.projected_gain)} compared with current starters.` : "";
   const refresh = async () => {
     await Promise.all([["players", id], ["roster", id], ["projection-leaders", id], ["league", id], ["leagues"], ["dashboard"], ["lineup", id], ["weekly-lineup", id], ["waivers", id], ["waivers-page", id], ["draft-board-v2"]].map((queryKey) => queryClient.invalidateQueries({ queryKey })));
   };
@@ -206,99 +204,95 @@ function LeagueWorkspace({ id, draftSuiteEnabled }: { id: number; draftSuiteEnab
   if (!league) return <Failure title="Could not load this league" error={leagueQuery.error} retry={() => void leagueQuery.refetch()} />;
   const rosteredCount = players.filter((player) => player.rostered_by).length;
   const changes = lineup && !lineupError ? lineupChanges(roster, lineup, league.roster_slots) : null;
-  const starters = roster.filter((player) => rosterGroup(player, league.roster_slots) === "Starters");
-  const reserves = ["Bench", "Reserve", "Unassigned"] as const;
   const syncPending = sync.isPending || importDraft.isPending || add.isPending || importPlayers.isPending;
   const scoring = Object.entries(league.scoring);
   const datedPlayers = roster.filter((player) => player.projection?.source_updated_at).length;
 
   return <div className="league-page">
-    <header className="page-header league-header"><div><p className="league-source">{formatSourceLabel(league.source)} · {league.season}</p><h1>{league.name}</h1></div>
-      {draftSuiteEnabled && <Link className="button ghost" to={`/draft/${id}`}>Open draft room</Link>}
+    <header className="page-header league-header"><div><h1>{league.name}</h1><p className="league-header-context">{formatSourceLabel(league.source)} · {league.season}</p></div>
+      {league.yahoo_key && <button type="button" className="ghost" disabled={syncPending} onClick={() => sync.mutate()}><RefreshCw size={16} className={sync.isPending ? "spin" : ""} />{sync.isPending ? "Syncing Yahoo…" : "Sync Yahoo roster"}</button>}
     </header>
     {leagueQuery.error && <Failure title="League refresh failed; showing previously loaded settings" error={leagueQuery.error} retry={() => void leagueQuery.refetch()} />}
-    <details className="league-team-setting" open={!league.my_team_name || (!playersQuery.isLoading && !teams.includes(league.my_team_name))}>
-      <summary>My team: {league.my_team_name || "Not set"}<span>Change</span></summary>
-      <MyTeamSetting league={league} rosterTeams={teams} loading={playersQuery.isLoading} error={Boolean(playersQuery.error)} onSaved={() => setTeamChoice("")} />
-    </details>
-    <DetailTabs id="league-view" label="League views" tabs={LEAGUE_TABS} selected={tab} onSelect={selectTab} />
-    <div className="league-working-context" role="group" aria-label="Team and week for both league views">
+    <div className="league-working-context" role="group" aria-label="Team and week">
       <Field label="Fantasy team"><select value={selectedTeam} onChange={(event) => setTeamChoice(event.target.value)} disabled={!teams.length}>
         {!selectedTeam && <option value="">{playersQuery.isLoading ? "Loading teams…" : playersQuery.error ? "Teams unavailable" : teamChoice ? "Selected team unavailable" : league.my_team_name ? "No roster for my team" : "No roster imported"}</option>}{teams.map((team) => <option key={team}>{team}</option>)}
       </select></Field>
-      <Field label="Projection week"><select value={weekChoice} onChange={(event) => setWeekChoice(event.target.value)}><option value="">{analysisContext.data ? `Current: ${analysisContext.data.suggested_week}` : "Current"}</option>{Array.from({ length: 18 }, (_, index) => <option key={index + 1} value={index + 1}>Week {index + 1}</option>)}</select></Field>
-      <span className="league-context-hint">Shared across Overview and Forecast. Does not change My team.</span>
+      <Field label="NFL week"><select value={weekChoice} onChange={(event) => setWeekChoice(event.target.value)}><option value="">{analysisContext.data ? `Current: ${analysisContext.data.suggested_week}` : "Current"}</option>{Array.from({ length: 18 }, (_, index) => <option key={index + 1} value={index + 1}>Week {index + 1}</option>)}</select></Field>
+      <span className="league-context-hint">{datedPlayers ? `Source dates supplied for ${datedPlayers}/${roster.length} players` : "Source update times not supplied"}{syncCompletedAt ? ` · Synced at ${syncCompletedAt} this visit` : ""}</span>
     </div>
+    <DetailTabs id="league-view" label="League views" tabs={LEAGUE_TABS} selected={tab} onSelect={selectTab} />
     {analysisContext.error && <Failure title="Could not refresh the current NFL week" error={analysisContext.error} retry={() => void analysisContext.refetch()} />}
-    <div className="league-view-panel" role="tabpanel" id="league-view-panel-overview" aria-labelledby="league-view-tab-overview" hidden={tab !== "overview"} tabIndex={0}>
-    <div className="league-context">
-      <div className="league-context-copy"><strong>{playersQuery.isLoading ? "Loading roster data…" : playersQuery.error ? "Roster data unavailable" : `${rosteredCount} rostered players across ${teams.length} teams`}</strong>
-        <span>{datedPlayers ? `Source update times recorded for ${datedPlayers}/${roster.length} selected-team players` : "Source update times not supplied"}{syncCompletedAt ? ` · Sync completed at ${syncCompletedAt} this visit` : ""}</span></div>
-      {league.yahoo_key && <button type="button" className="ghost" disabled={syncPending} onClick={() => sync.mutate()}><RefreshCw size={16} className={sync.isPending ? "spin" : ""} />{sync.isPending ? "Syncing Yahoo…" : "Sync Yahoo roster"}</button>}
-    </div>
     <div className="league-action-feedback" aria-live="polite">
       {sync.data && <p className={sync.data.partial || sync.data.errors?.length ? "league-warning" : "success"}>Sync returned {sync.data.players} players and {sync.data.draft_picks || 0} draft picks.{sync.data.partial ? " Player coverage is partial." : ""}{sync.data.errors?.length ? ` ${sync.data.errors.join(" · ")}` : ""}</p>}
       {importDraft.data && <p className="success">Imported {importDraft.data.players} draft picks into the roster.</p>}
       {add.isSuccess && <p className="success">Player added.</p>}
       {importPlayers.data && <p className="success">Import complete: {importPlayers.data.created} created, {importPlayers.data.updated} updated.</p>}
-      {add.error && <p className="league-warning">Player was not added. Open data tools to review the error and retry.</p>}
-      {importPlayers.error && <p className="league-warning">Player import failed. Open data tools to review the error and retry.</p>}
+      {add.error && <p className="league-warning">Player was not added. Open League tools to review the error and retry.</p>}
+      {importPlayers.error && <p className="league-warning">Player import failed. Open League tools to review the error and retry.</p>}
     </div>
     {(sync.error || importDraft.error) && <Failure title="Roster sync failed" error={sync.error || importDraft.error} retry={() => sync.error ? sync.mutate() : importDraft.mutate()} />}
-    <p className="league-data-note">{weekLabel} · Open Gridiron weekly projections</p>
-    <nav className="league-section-nav" aria-label="League sections"><a href="#lineup-review">Lineup</a><a href="#current-roster">Roster</a><a href="#player-projections">Projections</a><a href="#waiver-watchlist-heading">Waivers</a><a href="#league-data-tools">Data tools</a></nav>
+    <div className="league-view-panel" role="tabpanel" id="league-view-panel-roster" aria-labelledby="league-view-tab-roster" hidden={tab !== "roster"} tabIndex={0}>
+    <div className="league-column-controls" role="group" aria-label="Roster columns"><button type="button" aria-pressed={rosterView === "weekly"} onClick={() => setRosterView("weekly")}>Weekly lineup</button><button type="button" aria-pressed={rosterView === "source"} onClick={() => setRosterView("source")}>Source projections</button></div>
     {playersQuery.isLoading ? <div className="league-body-loading"><Loading>Loading roster and available players…</Loading></div> : playersQuery.error ? <Failure title="Could not load roster data" error={playersQuery.error} retry={() => void playersQuery.refetch()} /> : <>
-      <section className="league-section" id="lineup-review" aria-labelledby="lineup-review-heading">
-        <div className="league-section-heading"><h2 id="lineup-review-heading">Lineup review</h2>
+      {rosterView === "weekly" && <><section className="league-section league-lineup-review" id="lineup-review" aria-labelledby="lineup-review-heading">
+        <div className="league-section-heading"><div><h2 id="lineup-review-heading">Lineup review</h2><p className="league-caption">{weekLabel} · Open Gridiron weekly model</p></div>
           <fieldset className="league-mode"><legend>Lineup objective</legend><div>{(Object.keys(LINEUP_MODES) as LineupMode[]).map((value) => <button type="button" key={value} aria-pressed={mode === value} onClick={() => setMode(value)}>{LINEUP_MODES[value].label}</button>)}</div></fieldset>
         </div>
         <span className="sr-only" role="status">{announcement}</span>
-        {!selectedTeam ? <p>No roster imported. <a className="league-text-link" href="#league-data-tools">Import a roster or connect Yahoo</a> to compare starters.</p> : lineupQuery.isLoading ? <div className="league-lineup-loading"><Loading>Calculating {LINEUP_MODES[mode].label.toLowerCase()} lineup…</Loading></div> : lineupError ? <Failure title="Could not calculate the lineup" error={lineupError} retry={() => void lineupQuery.refetch()} /> : lineup && <>
+        {!selectedTeam ? <p>No roster imported. <a className="league-text-link" href="#league-data-tools" onClick={() => { if (toolsDisclosure.current) toolsDisclosure.current.open = true; }}>Import a roster or connect Yahoo</a> to compare starters.</p> : lineupQuery.isLoading ? <div className="league-lineup-loading"><Loading>Calculating {LINEUP_MODES[mode].label.toLowerCase()} lineup…</Loading></div> : lineupError ? <Failure title="Could not calculate the lineup" error={lineupError} retry={() => void lineupQuery.refetch()} /> : lineup && <>
+          <div className="league-changes">
+            <h3>{changes && changes.start.length === 1 && changes.bench.length === 1 ? "1 proposed swap" : changes && (changes.start.length || changes.bench.length) ? `${changes.start.length} to start · ${changes.bench.length} to bench` : "Lineup unchanged"}</h3>
+            {changes && (changes.start.length || changes.bench.length) ? <p className="league-change-summary">{changes.start.map(({ player, slot }, index) => <span key={`start-${player.id}`}>{index > 0 && "; "}Start <strong>{player.name}</strong> in {slotLabel(slot)}</span>)}{changes.start.length > 0 && changes.bench.length > 0 && "; "}{changes.bench.map((player, index) => <span key={`bench-${player.id}`}>{index > 0 && "; "}bench <strong>{player.name}</strong></span>)}.</p> : <p>{lineup.unfilled_slots.length ? "No start/bench changes among assigned players." : "Your current starters already match the recommended player group."}</p>}
+            <p className="league-caption">Check availability before changing your lineup in Yahoo. Locked games stay fixed; other statuses are conditional on playing.</p>
+          </div>
           <dl className="league-comparison" aria-label={`${LINEUP_MODES[mode].label} lineup comparison`}>
             <div><dt>Current · {LINEUP_MODES[mode].label}{lineup.partial_total ? " · modeled portion" : ""}</dt><dd>{points(lineup.current_total)} <small>pts</small></dd></div>
             <div><dt>Recommended · {LINEUP_MODES[mode].label}{lineup.partial_total ? " · modeled portion" : ""}</dt><dd>{points(lineup.projected_total)} <small>pts</small></dd></div>
             <div><dt>Potential change</dt><dd className={(lineup.projected_gain ?? 0) < 0 ? "league-warning" : "league-positive"}>{signedPoints(lineup.projected_gain)} <small>pts</small></dd></div>
           </dl>
           <details className="league-disclosure league-objective-help"><summary>About the {LINEUP_MODES[mode].label.toLowerCase()} objective</summary>
-            <p>{LINEUP_MODES[mode].description} Both lineup totals use this weekly objective. Current roster rows show the central weekly projection. Waiver rankings and imported source projections keep their original values.</p>
+            <p>{LINEUP_MODES[mode].description} Both lineup totals and all weekly roster rows use this objective. Source projections retain their imported period and scoring.</p>
             <p>Weekly estimates use recent NFL game production scored for your league. This experimental baseline does not adjust for matchup, weather, or injury news.</p>
           </details>
           {lineup.partial_total && <p className="league-warning" role="status">Some players lack weekly forecasts. Totals include only modeled players; unavailable estimates are not zero. Starters without a forecast stay in place.</p>}
           {lineup.unfilled_slots.length > 0 && <p className="league-warning" role="alert">Unfilled starter slots: {lineup.unfilled_slots.map(slotLabel).join(", ")}. The recommended total is incomplete.</p>}
-          <div className="league-changes">
-            <h3>Suggested changes</h3>
-            {changes && (changes.start.length || changes.bench.length) ? <ul>
-              {changes.start.map(({ player, slot }) => <li key={`start-${player.id}`}><PlayerDetailsButton player={player}><strong>Start {player.name}</strong></PlayerDetailsButton><span>{slotLabel(player.current_slot)} to {slotLabel(slot)} · {player.status}</span></li>)}
-              {changes.bench.map((player) => <li key={`bench-${player.id}`}><PlayerDetailsButton player={player}><strong>Bench {player.name}</strong></PlayerDetailsButton><span>Currently {slotLabel(player.current_slot)} · {player.status}</span></li>)}
-            </ul> : <p>{lineup.unfilled_slots.length ? "No start/bench changes among assigned players." : "Your current starters already match the recommended player group."}</p>}
-            <p className="league-caption">Games already started stay locked. Other injury statuses are conditional on playing. Review availability and eligibility before making changes in Yahoo. Open Gridiron does not submit lineup changes.</p>
-          </div>
+
         </>}
       </section>
-      <div className="league-roster-grid">
-        <section className="league-section" aria-labelledby="recommended-starters-heading"><h2 id="recommended-starters-heading">Recommended starters</h2>
-          <p className="league-caption">{weekLabel} · {LINEUP_MODES[mode].label.toLowerCase()} weekly estimates</p>
-          {!selectedTeam ? <p>No team roster available.</p> : lineupQuery.isLoading ? <Loading>Loading recommended starters…</Loading> : lineupError ? <p>Recommendations unavailable. Retry the lineup calculation above.</p> : lineup && <table className="league-roster-table">
-            <caption className="sr-only">Recommended starters using {LINEUP_MODES[mode].label.toLowerCase()} weekly estimates</caption><thead><tr><th scope="col">Slot</th><th scope="col">Player / status</th><th scope="col" className="numeric">{weekly ? `Week ${weekly.week}` : "Weekly"} pts</th></tr></thead>
-            <tbody>{[...lineup.assignments].sort((a, b) => slotOrder(a.slot) - slotOrder(b.slot)).map(({ slot, player, score }) => <tr key={`${slot}-${player.id}`}><td className="league-slot">{slotLabel(slot)}</td><td><PlayerIdentity player={player} />{changes?.start.some((item) => item.player.id === player.id) && <span className="league-positive league-caption">Suggested start</span>}</td><td className="numeric">{points(score)}</td></tr>)}</tbody>
-          </table>}
-        </section>
-        <section className="league-section" id="current-roster" aria-labelledby="current-roster-heading"><h2 id="current-roster-heading">Current roster</h2><p className="league-caption">Imported slots · {weekLabel.toLowerCase()} projected points</p>
-          {starters.length ? <RosterTable roster={starters} label="Current starters" weekly={weekly} loading={lineupQuery.isLoading} /> : <p>No assigned starters in this roster.</p>}
-          {reserves.map((group) => { const grouped = roster.filter((player) => rosterGroup(player, league.roster_slots) === group); return grouped.length ? <details className="league-disclosure" key={group}><summary>{group} · {grouped.length} {grouped.length === 1 ? "player" : "players"}</summary><RosterTable roster={grouped} label={`${group} players`} weekly={weekly} loading={lineupQuery.isLoading} /></details> : null; })}
-        </section>
-      </div>
-      <PlayerProjections leagueId={id} roster={roster} team={selectedTeam} />
-      <WaiverWatchlist leagueId={id} rosterSlots={league.roster_slots} showReplay={Boolean(completedDraft)} teamName={selectedTeam} />
+      <RosterTable roster={roster} slots={league.roster_slots} weekly={lineupError ? undefined : weekly} gameForecasts={weekly?.forecasts} mode={mode} loading={lineupQuery.isLoading} /></>}
+      {rosterView === "source" && <section className="league-section" id="player-projections" aria-labelledby="player-projections-heading"><h2 id="player-projections-heading">Roster source projections</h2>{roster.length ? <SourceProjectionTable players={roster} gameForecasts={weekly?.forecasts} scheduleLoading={lineupQuery.isLoading} /> : <p>No roster projections. Open League tools to sync or import players.</p>}</section>}
     </>}
-    <details className="league-disclosure league-section" id="league-data-tools"><summary>League settings & data tools</summary>
+    </div>
+    <div className="league-view-panel" role="tabpanel" id="league-view-panel-waivers" aria-labelledby="league-view-tab-waivers" hidden={tab !== "waivers"} tabIndex={0}>
+      <WaiverWatchlist leagueId={id} rosterSlots={league.roster_slots} teamName={selectedTeam} active={tab === "waivers"} />
+      <LeagueProjectionLeaders leagueId={id} active={tab === "waivers"} />
+    </div>
+    <div className="league-view-panel" role="tabpanel" id="league-view-panel-analysis" aria-labelledby="league-view-tab-analysis" hidden={tab !== "analysis"} tabIndex={0}>
+      {tab === "analysis" && <LeagueAnalysisPanel league={league} selectedTeam={selectedTeam} selectedWeek={Number(weekChoice) || analysisContext.data?.suggested_week || weekly?.week || 1} onWeekChange={(week) => setWeekChoice(String(week))} />}
+    </div>
+    <details ref={toolsDisclosure} className="league-disclosure league-section" id="league-data-tools" open={Boolean(league.my_team_name && !playersQuery.isLoading && !teams.includes(league.my_team_name))}><summary>League tools</summary>
+      <details className="league-team-setting" open={!league.my_team_name || (!playersQuery.isLoading && !teams.includes(league.my_team_name))}>
+        <summary>My team: {league.my_team_name || "Not set"}<span>Change</span></summary>
+        <MyTeamSetting league={league} rosterTeams={teams} loading={playersQuery.isLoading} error={Boolean(playersQuery.error)} onSaved={() => setTeamChoice("")} />
+      </details>
+      <p className="league-help">{rosteredCount} rostered players across {teams.length} {teams.length === 1 ? "team" : "teams"}. The team picker changes the current view; My team sets your default.</p>
+      {draftSuiteEnabled && <Link className="button ghost" to={`/draft/${id}`}>{completedDraft ? "Open draft room / replay" : "Open draft room"}</Link>}
+      <details className="league-disclosure"><summary>Sync & imports</summary>
       <h3>Data sources</h3><p className="league-help">Yahoo sync reads roster moves, ownership, slots, status, and draft results. It may replace stored projections when Yahoo supplies them. It does not submit changes to Yahoo. Completed live drafts also populate the local roster.</p>
       {!league.yahoo_key && <Link className="button ghost" to="/settings">Connect Yahoo scraper</Link>}
       {completedDraft && rosteredCount === 0 && <button type="button" disabled={syncPending} onClick={() => importDraft.mutate()}>{importDraft.isPending ? "Importing draft…" : "Use completed live draft"}</button>}
       {draftQuery.error && <Failure title="Draft import availability could not be checked" error={draftQuery.error} retry={() => void draftQuery.refetch()} />}
+      <h3>Import players & projections</h3><p className="league-help" id="league-import-help">Choose CSV or a JSON array of players. Use name, pro_team, position, and projected_points; include source_id for stable matching. Imports update matching records and create new ones. Optional fields include ownership, rostered_by, current_slot, status, floor, ceiling, ros_value, and risk.</p>
+      <p className="league-help">CSV provenance columns: projection_source, projection_period (season, week, rest_of_season, or unknown), projection_season, projection_week, projection_source_updated_at (ISO date with timezone), projection_scoring_basis (source_points, league_rules, or unknown), and projection_scoring (JSON rules). JSON imports accept the same metadata under a projection object without the projection_ prefixes. Blank or null ros_value means missing; 0 means supplied zero.</p>
+      <div className="league-import-row"><Field label="Player data file"><input type="file" accept=".csv,.json" aria-describedby="league-import-help" onChange={(event) => { setImportFile(event.target.files?.[0] || null); importPlayers.reset(); }} /></Field><button type="button" disabled={!importFile || syncPending} onClick={() => importPlayers.mutate()}>{importPlayers.isPending ? "Importing players…" : "Import CSV / JSON"}</button></div>
+      {importPlayers.error && <Failure title="Player import failed. Check the file and try again." error={importPlayers.error} />}
+      </details>
+      <details className="league-disclosure"><summary>Scoring & roster slots</summary>
       <h3>League scoring & roster slots</h3><p className="league-help">Current league settings are shown below. Projection sources retain the scoring context supplied with each import; stored totals are not automatically recalculated when settings change.</p>
-      {scoring.length ? <dl className="league-scoring">{scoring.map(([stat, value]) => <div key={stat}><dt>{stat.replaceAll("_", " ")}</dt><dd>{value}</dd></div>)}</dl> : <p>No explicit scoring settings stored.</p>}
+      {scoring.length ? <dl className="league-scoring">{scoring.map(([stat, value]) => <div key={stat}><dt>{scoringLabel(stat)}</dt><dd>{value}</dd></div>)}</dl> : <p>No explicit scoring settings stored.</p>}
       <p className="league-caption">Roster slots: {league.roster_slots.map(slotLabel).join(" · ")}</p>
+      </details>
+      <details className="league-disclosure"><summary>Manual player entry</summary>
       <h3>Add a player manually</h3><p className="league-help">For availability, use FA (free agent) or W (waivers). For rostered players, enter the exact fantasy-team name and a roster slot; BN means bench. Use the same projection period as your existing data.</p>
       <form className="league-player-form" onSubmit={(event) => { event.preventDefault(); add.mutate(); }}>
         {(Object.keys(form) as (keyof typeof form)[]).map((key) => <Field key={key} label={FORM_LABELS[key]}><input value={form[key]} type={typeof form[key] === "number" || key === "ros_value" ? "number" : "text"} step="0.1" onChange={(event) => setForm({ ...form, [key]: typeof form[key] === "number" ? Number(event.target.value) : event.target.value })} required={["name", "pro_team", "position"].includes(key)} /></Field>)}
@@ -311,16 +305,9 @@ function LeagueWorkspace({ id, draftSuiteEnabled }: { id: number; draftSuiteEnab
         <button className="primary" disabled={syncPending}>{add.isPending ? "Adding player…" : "Add player"}</button>
       </form>{add.error && <Failure title="Could not add the player" error={add.error} />}
       <p className="league-help">Leave rest-of-season value blank when missing; enter 0 only when the source explicitly reports zero. Leave source update time blank unless the provider supplies it.</p>
-      <h3>Import players & projections</h3><p className="league-help" id="league-import-help">Choose CSV or a JSON array of players. Use name, pro_team, position, and projected_points; include source_id for stable matching. Imports update matching records and create new ones. Optional fields include ownership, rostered_by, current_slot, status, floor, ceiling, ros_value, and risk.</p>
-      <p className="league-help">CSV provenance columns: projection_source, projection_period (season, week, rest_of_season, or unknown), projection_season, projection_week, projection_source_updated_at (ISO date with timezone), projection_scoring_basis (source_points, league_rules, or unknown), and projection_scoring (JSON rules). JSON imports accept the same metadata under a projection object without the projection_ prefixes. Blank or null ros_value means missing; 0 means supplied zero.</p>
-      <div className="league-import-row"><Field label="Player data file"><input type="file" accept=".csv,.json" aria-describedby="league-import-help" onChange={(event) => { setImportFile(event.target.files?.[0] || null); importPlayers.reset(); }} /></Field><button type="button" disabled={!importFile || syncPending} onClick={() => importPlayers.mutate()}>{importPlayers.isPending ? "Importing players…" : "Import CSV / JSON"}</button></div>
-      {importPlayers.error && <Failure title="Player import failed. Check the file and try again." error={importPlayers.error} />}
+      </details>
     </details>
     <PerformanceDiagnostics />
-    </div>
-    <div className="league-view-panel" role="tabpanel" id="league-view-panel-forecast" aria-labelledby="league-view-tab-forecast" hidden={tab !== "forecast"} tabIndex={0}>
-      {tab === "forecast" && <LeagueAnalysisPanel league={league} selectedTeam={selectedTeam} selectedWeek={Number(weekChoice) || analysisContext.data?.suggested_week || weekly?.week || 1} onWeekChange={(week) => setWeekChoice(String(week))} />}
-    </div>
   </div>;
 }
 

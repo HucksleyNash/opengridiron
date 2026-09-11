@@ -9,6 +9,7 @@ import { projectionPeriod, slotLabel, sourceTime } from "../leagues/league-displ
 import { availability, reportForWeek, safeSourceUrl, sourceLabel } from "./forecast-display";
 import type { AnalysisSummary, Forecast, SavedAnalysis, WeeklyReport } from "./types";
 import "./league-analysis.css";
+import { AnalysisFollowUp } from "../analysis/AnalysisFollowUp";
 
 const ACTIVE = ["queued", "refreshing", "forecasting", "analyzing"];
 const STATUS: Record<string, string> = { queued: "Queued", refreshing: "Refreshing league and NFL sources…", forecasting: "Calculating weekly forecasts…", analyzing: "Analyst is reviewing the decisions…", completed: "Complete", partial: "Complete with gaps", failed: "Failed" };
@@ -52,7 +53,7 @@ function LeagueWorkspace({ league, selectedTeam, selectedWeek, onWeekChange }: W
   const saved = detail.data?.team_name === selectedTeam && detail.data.week === selectedWeek ? detail.data : undefined;
   const hasSavedReport = Boolean(selected?.has_report);
   return <>
-    {saved?.report && <p><Link to={`/analysis?${new URLSearchParams({ league_id: String(league.id), league_report_id: String(saved.id), team_name: selectedTeam, week: String(selectedWeek) })}`}>Ask a follow-up about this report</Link></p>}
+    {saved?.report && <p><a href="#weekly-follow-up">Ask a follow-up about this report</a> · <Link to={`/analysis?${new URLSearchParams({ league_id: String(league.id), league_report_id: String(saved.id), team_name: selectedTeam, week: String(selectedWeek) })}`}>Open report in Analyst desk</Link></p>}
     {runs.length > 0 && <label className="weekly-history-label">Saved reports<select aria-label="Saved reports" value={selected?.id ?? ""} onChange={(event) => {
       const run = runs.find((item) => item.id === Number(event.target.value));
       if (run) { setSelectedId(run.id); onWeekChange(run.week); }
@@ -75,7 +76,8 @@ function LeagueWorkspace({ league, selectedTeam, selectedWeek, onWeekChange }: W
     {active && <p className="weekly-progress" role="status"><RefreshCw className="spin" size={16} />Week {active.week}: {STATUS[active.status]} You can leave this page; the report is saved when finished.</p>}
     {runs[0]?.status === "failed" && <p role="alert" className="weekly-notice error">Latest run failed (Week {runs[0].week}). {runs[0].error} {saved?.report && "Showing a previous saved report."}</p>}
     {(history.isLoading || (detail.isFetching && !saved)) && <p role="status">Loading saved report…</p>}
-    {saved?.report ? <Report key={saved.id} saved={saved} /> : !active && !history.isLoading && !detail.isFetching && !error && selectedTeam ? <p className="weekly-empty">No saved report for {selectedTeam} · Week {selectedWeek}. Run an analysis or choose another week from Saved reports.</p> : null}
+    {saved?.report ? <Report key={saved.id} saved={saved} /> : !active && !history.isLoading && !detail.isFetching && !error && selectedTeam ? <p className="weekly-empty">No saved report for {selectedTeam} · Week {selectedWeek}. {runs.length ? "Run an analysis or choose another week from Saved reports." : "Run league analysis to save your first report."}</p> : null}
+    {saved?.report && <div id="weekly-follow-up"><AnalysisFollowUp key={saved.id} source={{ league_report_id: saved.id }} providerId={providerId} /></div>}
   </>;
 }
 

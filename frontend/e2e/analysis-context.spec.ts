@@ -1,3 +1,4 @@
+import { mockAnalysisLibrary } from "./fixtures/analysis-library";
 import { expect, test, type Page } from "@playwright/test";
 
 async function mockContext(page: Page) {
@@ -31,30 +32,29 @@ async function mockContext(page: Page) {
     }
     return json([]);
   });
+  await mockAnalysisLibrary(page, () => runs);
   return { requests, errors };
 }
 
 test("report follow-ups retain frozen scope, continue the parent, and clear lineage for a new conversation", async ({ page }) => {
   const mock = await mockContext(page);
   await page.goto("/analysis?league_id=1&league_report_id=42&team_name=My+Team&week=2");
-  await expect(page.getByRole("status").filter({ hasText: "Saved report #42" })).toContainText("My Team · Week 2");
-  await expect(page.getByRole("combobox", { name: "League context", exact: true })).toHaveValue("1");
-  await expect(page.getByRole("combobox", { name: "League context", exact: true })).toBeDisabled();
-  await expect(page.getByRole("spinbutton", { name: "Week", exact: true })).toHaveValue("2");
-  const question = page.getByPlaceholder("Which lineup decision has the biggest evidence-backed edge this week?");
+  await expect(page.locator(".analysis-context-header")).toContainText("My Team · Week 2");
+  await expect(page.locator(".analysis-context-header")).toContainText("report #42");
+  const question = page.getByRole("textbox", { name: "Your follow-up question" });
   await question.fill("Explain this saved lineup");
-  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await page.getByRole("button", { name: "Ask follow-up", exact: true }).click();
   await expect(page.locator(".analysis-answer")).toContainText("Saved answer 100");
-  expect(mock.requests[0].body).toMatchObject({ league_id: 1, league_report_id: 42, team_name: "My Team", week: 2 });
+  expect(mock.requests[0].body).toMatchObject({ league_report_id: 42 });
   expect(mock.requests[0].body).not.toHaveProperty("parent_run_id");
   await question.fill("What is the main risk?");
-  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await page.getByRole("button", { name: "Ask follow-up", exact: true }).click();
   await expect(page.locator(".analysis-answer")).toContainText("Saved answer 101");
-  expect(mock.requests[1].body).toMatchObject({ parent_run_id: 100, league_report_id: 42, league_id: 1, team_name: "My Team", week: 2 });
-  await page.getByRole("button", { name: "Start a new conversation", exact: true }).click();
+  expect(mock.requests[1].body).toMatchObject({ parent_run_id: 100 });
+  await page.getByRole("button", { name: "New analysis", exact: true }).click();
   await expect(page).toHaveURL(/\/analysis$/);
-  await expect(page.getByRole("combobox", { name: "League context", exact: true })).toBeEnabled();
-  await question.fill("Start from new evidence");
+  await expect(page.getByRole("combobox", { name: "Context", exact: true })).toBeEnabled();
+  await page.getByRole("textbox", { name: "Question", exact: true }).fill("Start from new evidence");
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   await expect(page.locator(".analysis-answer")).toContainText("Saved answer 102");
   for (const key of ["parent_run_id", "league_report_id", "league_id", "team_name", "week", "pool_id", "draft_session_id"]) expect(mock.requests[2].body).not.toHaveProperty(key);

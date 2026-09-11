@@ -7,8 +7,8 @@ import {
   Copy,
   DraftingCompass,
   ExternalLink,
-  History,
   Home,
+  HeartPulse,
   KeyRound,
   Menu,
   Newspaper,
@@ -24,9 +24,11 @@ import { PlayerDetailsButton, PlayerDetailsProvider, PlayerMentions } from "./fe
 import { api, ApiError, post, remove } from "./api";
 import { ProviderEditor, ProviderTasks } from "./features/analysis/ProviderEditor";
 import { providerModelControl, providerModelPlaceholder, supportsProviderModelDiscovery } from "./provider-model-state";
-import type { AnalysisOutput, AnalysisResult, AnalysisRun, Game, League, Pool, Provider } from "./types";
+import type { Game, League, Pool, Provider } from "./types";
 import { filterNewsItems, formatSourceLabel, type NewsFeedItem, uniqueAlertsByTitle } from "./ui-display-state";
 
+const AnalysisWorkspace = lazy(() => import("./features/analysis/AnalysisWorkspace"));
+const InjuryReportPage = lazy(() => import("./features/injuries/InjuryReportPage"));
 const LeaguePage = lazy(() => import("./features/leagues/LeaguePage"));
 const DraftRoute = lazy(() => import("./features/draft/DraftRoute").then((module) => ({ default: module.DraftRoute })));
 const PoolsOverviewPage = lazy(() => import("./features/pools/PoolsOverviewPage").then((module) => ({ default: module.PoolsOverviewPage })));
@@ -189,6 +191,7 @@ const nav = [
   ["/draft", "Draft room", DraftingCompass],
   ["/pools", "Pools", Trophy],
   ["/news", "News wire", Newspaper],
+  ["/injuries", "Injury report", HeartPulse],
   ["/analysis", "Analyst desk", Bot],
   ["/settings", "Settings", Settings],
 ] as const;
@@ -495,129 +498,6 @@ function NewsPage() {
   </>;
 }
 
-function AnalysisAnswer({
-  output,
-  provider,
-  model,
-  question,
-  createdAt,
-}: {
-  output: AnalysisOutput;
-  provider: string;
-  model: string;
-  question?: string;
-  createdAt?: string;
-}) {
-  return <>
-    <span className="eyebrow">{provider} · {model}{createdAt ? ` · ${new Date(createdAt).toLocaleString()}` : ""}</span>
-    {question && <div className="analysis-question"><small>Question</small><p><PlayerMentions text={question} /></p></div>}
-    <h2><PlayerMentions text={output.summary} /></h2>
-    <h3>Recommendations</h3>
-    <ol>{output.recommendations.map((value, index) => <li key={`${index}-${value}`}><PlayerMentions text={value} /></li>)}</ol>
-    <h3>Risks</h3>
-    <ul>{output.risks.map((value, index) => <li key={`${index}-${value}`}><PlayerMentions text={value} /></li>)}</ul>
-    {output.missing_information.length > 0 && <><h3>Missing information</h3><ul>{output.missing_information.map((value, index) => <li key={`${index}-${value}`}><PlayerMentions text={value} /></li>)}</ul></>}
-    {output.citations.length > 0 && <><h3>Sources</h3>{output.citations.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer">{url}</a>)}</>}
-  </>;
-}
-
-function AnalysisPage() {
-  const queryClient = useQueryClient();
-  const [search, setSearch] = useSearchParams();
-  const { data: providers = [] } = useQuery({ queryKey: ["providers"], queryFn: () => api<Provider[]>("/providers") });
-  const { data: leagues = [] } = useQuery({ queryKey: ["leagues"], queryFn: () => api<League[]>("/leagues") });
-  const { data: pools = [] } = useQuery({ queryKey: ["pools"], queryFn: () => api<Pool[]>("/pools") });
-  const history = useQuery({ queryKey: ["analysis-runs"], queryFn: () => api<AnalysisRun[]>("/analysis/runs") });
-  const [question, setQuestion] = useState("");
-  const [submittedQuestion, setSubmittedQuestion] = useState("");
-  const [providerId, setProviderId] = useState<number | undefined>();
-  const [leagueId, setLeagueId] = useState<number | undefined>();
-  const [draftSessionId, setDraftSessionId] = useState<number | null | undefined>();
-  const [poolId, setPoolId] = useState<number | undefined>();
-  const [reviewRunId, setReviewRunId] = useState<number | null>(null);
-  const [reportId, setReportId] = useState<number>();
-  const [parentRunId, setParentRunId] = useState<number>();
-  const [teamName, setTeamName] = useState<string>();
-  const [week, setWeek] = useState<number>();
-  useEffect(() => {
-    setLeagueId(Number(search.get("league_id")) || undefined);
-    setPoolId(Number(search.get("pool_id")) || undefined);
-    setDraftSessionId(Number(search.get("draft_session_id")) || null);
-    setReportId(Number(search.get("league_report_id")) || undefined);
-    setParentRunId(Number(search.get("parent_run_id")) || undefined);
-    setTeamName(search.get("team_name") || undefined);
-    setWeek(Number(search.get("week")) || undefined);
-  }, [search]);
-  const frozenContext = Boolean(reportId || parentRunId);
-  const { data: draftSessions = [] } = useQuery({ queryKey: ["draft-sessions-v2", leagueId], queryFn: () => api<LeagueDraftSession[]>(`/leagues/${leagueId}/draft-sessions`), enabled: Boolean(leagueId) });
-  const mutation = useMutation({
-    mutationFn: () => post<AnalysisResult>("/analysis", { task: "chat", question, provider_id: providerId, league_id: leagueId, draft_session_id: draftSessionId ?? undefined, pool_id: poolId, league_report_id: reportId, parent_run_id: parentRunId, team_name: teamName, week }),
-    onMutate: () => {
-      setSubmittedQuestion(question);
-      setReviewRunId(null);
-    },
-    onSuccess: (result) => {
-      if (result.status === "completed") setParentRunId(result.run_id);
-      void queryClient.invalidateQueries({ queryKey: ["analysis-runs"] });
-    },
-  });
-  const runs = history.data || [];
-  const reviewRun = runs.find((run) => run.id === reviewRunId);
-  const visibleOutput = reviewRun?.output || (!reviewRun ? mutation.data?.output : undefined);
-  const analysisError = reviewRun
-    ? reviewRun.status === "failed"
-      ? new Error(reviewRun.error || "This saved analysis failed without provider output.")
-      : undefined
-    : mutation.data?.status === "failed"
-      ? new Error(mutation.data.error || "Analysis failed without provider output.")
-      : mutation.error;
-
-  return <>
-    <PageHeader eyebrow="Evidence-grounded" title="Analyst desk" />
-    <div className="analysis-layout">
-      <section className="panel">
-        {frozenContext && <p role="status">{reportId ? `Saved report #${reportId}` : "Continuing saved analysis"}{teamName ? ` · ${teamName}` : ""}{week ? ` · Week ${week}` : ""}. Follow-ups reuse the saved evidence and conversation. <button className="ghost" type="button" disabled={mutation.isPending} onClick={() => { setSearch({}); setParentRunId(undefined); setReportId(undefined); setLeagueId(undefined); setDraftSessionId(null); setPoolId(undefined); setTeamName(undefined); setWeek(undefined); mutation.reset(); setReviewRunId(null); }}>Start a new conversation</button></p>}
-        <div className="analysis-controls">
-          <Field label="Provider"><select value={providerId || ""} onChange={(e) => setProviderId(e.target.value ? Number(e.target.value) : undefined)}><option value="">Task default</option>{providers.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.model}</option>)}</select></Field>
-          <Field label="League context"><select disabled={frozenContext || mutation.isPending} value={leagueId || ""} onChange={(e) => { setLeagueId(e.target.value ? Number(e.target.value) : undefined); setDraftSessionId(null); setTeamName(undefined); setPoolId(undefined); }}><option value="">None</option>{leagues.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></Field>
-          <Field label="Draft context"><select value={draftSessionId ?? ""} disabled={!leagueId || frozenContext || mutation.isPending} onChange={(e) => setDraftSessionId(e.target.value ? Number(e.target.value) : null)}><option value="">League only · no draft order</option>{draftSessions.map((session) => <option key={session.id} value={session.id}>{session.kind === "mock" ? "Mock" : "Live"} #{session.id} · {session.status} · {session.team_count} teams · slot {session.owner_team_slot}</option>)}</select></Field>
-          <Field label="Pool context"><select disabled={frozenContext || mutation.isPending} value={poolId || ""} onChange={(e) => { setPoolId(e.target.value ? Number(e.target.value) : undefined); setLeagueId(undefined); setDraftSessionId(null); setTeamName(undefined); }}><option value="">None</option>{pools.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-          <Field label="Fantasy team"><select disabled={frozenContext || !leagueId || mutation.isPending} value={teamName || ""} onChange={(e) => setTeamName(e.target.value || undefined)}><option value="">Saved owner team</option>{(leagues.find((league) => league.id === leagueId)?.team_names || []).map((team) => <option key={team}>{team}</option>)}</select></Field>
-          <Field label="Week"><input type="number" min={1} max={18} disabled={frozenContext || mutation.isPending} value={week || ""} onChange={(e) => setWeek(Number(e.target.value) || undefined)} placeholder="Current week" /></Field>
-        </div>
-        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
-          <textarea rows={6} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Which lineup decision has the biggest evidence-backed edge this week?" required />
-          <button className="primary" disabled={mutation.isPending}>{mutation.isPending ? "Analyzing snapshots…" : "Analyze"}</button>
-        </form>
-      </section>
-      <section className="panel analysis-answer">
-        {analysisError ? <ErrorPanel error={analysisError} /> : visibleOutput ? <AnalysisAnswer
-          output={visibleOutput}
-          provider={reviewRun ? reviewRun.provider || "Removed provider" : mutation.data?.provider || "Removed provider"}
-          model={reviewRun?.model || mutation.data?.model || "Unknown model"}
-          question={reviewRun ? reviewRun.question || "Question was not captured for this earlier analysis." : submittedQuestion}
-          createdAt={reviewRun?.created_at}
-        /> : <Empty title="Ask with context" body="Choose a league and week, a specific draft, or a pool. Report follow-ups preserve their saved evidence." />}
-      </section>
-    </div>
-    <section className="panel analysis-history">
-      <div className="panel-title"><div><span className="eyebrow">Saved automatically</span><h2>Analysis history</h2></div>{runs.length > 0 && <span className="analysis-history-count"><History size={14} />{runs.length} saved</span>}</div>
-      {history.isLoading ? <Loading label="Loading saved analyses" /> : history.error ? <ErrorPanel error={history.error} /> : runs.length === 0 ? <Empty title="No saved analyses yet" body="Completed and failed analyst runs will appear here automatically." /> : <div className="analysis-history-list">
-        {runs.map((run) => <article className={`analysis-history-item ${reviewRunId === run.id ? "selected" : ""}`} key={run.id}>
-          <span className={`status ${run.status === "completed" ? "fresh" : run.status === "failed" ? "error" : ""}`} />
-          <span className="analysis-history-copy">
-            <strong><PlayerMentions text={run.question || "Question unavailable for this earlier analysis"} /></strong>
-            <small>{run.provider || "Removed provider"} · {run.model} · {new Date(run.created_at).toLocaleString()}</small>
-            <span><PlayerMentions text={run.output?.summary || run.error || "Analysis is still processing."} /></span>
-          </span>
-          <button type="button" className="ghost" aria-label={`Open saved analysis: ${run.question || run.id}`} aria-pressed={reviewRunId === run.id} onClick={() => setReviewRunId(run.id)}>Review<ChevronRight size={17} /></button>
-          {run.status === "completed" && <button type="button" className="ghost" disabled={mutation.isPending} onClick={() => { setSearch({ parent_run_id: String(run.id) }); setReviewRunId(run.id); }}>Follow up</button>}
-        </article>)}
-      </div>}
-    </section>
-  </>;
-}
-
 function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: status } = useQuery({ queryKey: ["onboarding"], queryFn: () => api<Onboarding>("/onboarding/status") });
@@ -838,7 +718,7 @@ function ProtectedApp({ draftSuiteEnabled }: { draftSuiteEnabled: boolean }) {
   const health = useQuery({ queryKey: ["health"], queryFn: () => api("/system/health"), retry: false });
   if (health.isLoading) return <Loading label="Opening your private instance" />;
   if (health.error instanceof ApiError && health.error.status === 401) return <LoginPage />;
-  return <PlayerDetailsProvider><AppShell draftSuiteEnabled={draftSuiteEnabled}><Suspense fallback={<Loading label="Loading workspace" />}><Routes><Route path="/" element={<DashboardPage />} /><Route path="/leagues" element={<LeaguesPage />} /><Route path="/leagues/:leagueId" element={<LeaguePage draftSuiteEnabled={draftSuiteEnabled} />} />{draftSuiteEnabled ? <><Route path="/draft" element={<DraftRoute />} /><Route path="/draft/:leagueId" element={<DraftRoute />} /></> : <Route path="/draft/*" element={<Navigate to="/" replace />} />}<Route path="/pools" element={<PoolsOverviewPage />} /><Route path="/pools/:poolId/weeks/:week" element={<PoolWeekPage />} /><Route path="/news" element={<NewsPage />} /><Route path="/analysis" element={<AnalysisPage />} /><Route path="/settings" element={<SettingsPage />} /></Routes></Suspense></AppShell></PlayerDetailsProvider>;
+  return <PlayerDetailsProvider><AppShell draftSuiteEnabled={draftSuiteEnabled}><Suspense fallback={<Loading label="Loading workspace" />}><Routes><Route path="/" element={<DashboardPage />} /><Route path="/leagues" element={<LeaguesPage />} /><Route path="/leagues/:leagueId" element={<LeaguePage draftSuiteEnabled={draftSuiteEnabled} />} />{draftSuiteEnabled ? <><Route path="/draft" element={<DraftRoute />} /><Route path="/draft/:leagueId" element={<DraftRoute />} /></> : <Route path="/draft/*" element={<Navigate to="/" replace />} />}<Route path="/pools" element={<PoolsOverviewPage />} /><Route path="/pools/:poolId/weeks/:week" element={<PoolWeekPage />} /><Route path="/news" element={<NewsPage />} /><Route path="/injuries" element={<InjuryReportPage />} /><Route path="/analysis" element={<AnalysisWorkspace />} /><Route path="/settings" element={<SettingsPage />} /></Routes></Suspense></AppShell></PlayerDetailsProvider>;
 }
 
 export default function App() {

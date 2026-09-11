@@ -250,6 +250,25 @@ def input_fingerprint(league: League, players: list[Player], games: list[Game]) 
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
+def historical_baseline_warning(player: Player, samples: list[dict], season: int) -> str:
+    first, latest = samples[0], samples[-1]
+    role_check = {
+        "QB": "the starting QB job and any expected snap limit",
+        "RB": "expected carries, receiving work and goal-line role",
+        "WR": "expected targets and route participation",
+        "TE": "expected targets and route participation",
+        "K": "the starting kicker job",
+        "DEF": "defensive starter injuries and roster changes",
+    }[position(player.position)]
+    return (
+        f"Historical baseline: {fmean(row['points'] for row in samples):.1f} pts/game "
+        f"across {len(samples)} games ({first['season']} Wk {first['week']} "
+        f"to {latest['season']} Wk {latest['week']}), using this league's scoring. "
+        f"No {season} game stats are included. "
+        f"Before setting the lineup, check {player.name}: {role_check}."
+    )
+
+
 def forecast_players(
     league: League,
     players: list[Player],
@@ -366,11 +385,13 @@ def forecast_players(
                     f"Conditional on playing: {player.status}. No invented injury adjustment."
                 )
             if samples[-1]["season"] < league.season:
-                warnings.append(
-                    "Preseason baseline uses prior-season production; current role is unverified."
-                )
+                warnings.append(historical_baseline_warning(player, samples, league.season))
             if samples[-1]["team"] and samples[-1]["team"] != team_code(player.pro_team):
-                warnings.append("Team changed since the latest game sample; role may differ.")
+                warnings.append(
+                    f"Latest game sample is with {samples[-1]['team']}; "
+                    f"current team is {team_code(player.pro_team)}. "
+                    "Check the role on the new team before relying on that production."
+                )
             elif samples[-1]["season"] == league.season and samples[-1]["week"] < week - 1:
                 warnings.append(
                     "Latest game sample is older than last week; check recent availability."
@@ -444,6 +465,7 @@ def forecast_players(
                 if game
                 else None,
                 "kickoff": utc(game.kickoff).isoformat() if game else None,
+                "bye": on_bye,
                 "source_projection": {
                     "points": source_points,
                     **context,

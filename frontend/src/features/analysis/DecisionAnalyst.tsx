@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, post } from "../../api";
 import type { AnalysisResult, AnalysisRun, Provider } from "../../types";
+import { AnalysisFollowUp } from "./AnalysisFollowUp";
 
 export function DecisionAnalyst({ context, question, revision }: { context: { league_id?: number; draft_session_id?: number; pool_id?: number; pool_entry_id?: number; week?: number }; question: string; revision?: number }) {
   const [providerId, setProviderId] = useState<number>();
@@ -45,7 +46,8 @@ export function DecisionAnalyst({ context, question, revision }: { context: { le
       <p>{saved ? `Saved review · ${new Date(saved.created_at).toLocaleString()}. The board may have changed; run another review for the latest choices.` : "Review complete."} {result.provider} · {result.model}</p>
       <h3>{result.output.summary}</h3><ul>{result.output.recommendations.map((item, index) => <li key={index}>{item}</li>)}</ul><p>{result.output.risks.join(" ")}</p>
       {result.output.missing_information.length > 0 && <p>Missing evidence: {result.output.missing_information.join(" ")}</p>}
-      <Link to={`/analysis?parent_run_id=${runId}`}>Ask a follow-up</Link>
+      <Link to={`/analysis?parent_run_id=${runId}`}>Open in Analyst desk</Link>
+      {runId && <AnalysisFollowUp key={runId} source={{ parent_run_id: runId }} providerId={providerId} disabled={pending} />}
     </div>}
   </section>;
 }

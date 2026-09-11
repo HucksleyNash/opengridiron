@@ -99,7 +99,9 @@ test("Sleeper import, refresh recovery, and confirmed local deletion", async ({ 
   await expect(card.getByRole("heading", { name: "Example survivor pool", exact: true })).toBeVisible();
   await expect(card.getByRole("link", { name: /Example owner · Entry 30/ })).toBeVisible();
   expect(imports).toBe(1);
-  await card.getByText("Sleeper pool details", { exact: true }).click();
+  const details = card.getByText("Sleeper pool details", { exact: true });
+  expect((await details.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await details.click();
   await card.getByRole("button", { name: "Refresh Sleeper details", exact: true }).click();
   await expect(card.getByRole("alert")).toHaveText("Sleeper is unavailable. Saved data is unchanged.");
   await expect(card.getByRole("heading", { name: "Example survivor pool", exact: true })).toBeVisible();
@@ -107,7 +109,7 @@ test("Sleeper import, refresh recovery, and confirmed local deletion", async ({ 
 
   await card.getByRole("button", { name: "Refresh Sleeper details", exact: true }).click();
   await expect(card.getByRole("heading", { name: "Updated survivor pool", exact: true })).toBeVisible();
-  await expect(card.getByRole("status")).toHaveText("Sleeper details refreshed.");
+  await expect(card.getByRole("status").filter({ hasText: "Sleeper details refreshed." })).toHaveText("Sleeper details refreshed.");
   await expect(card.getByRole("alert")).toHaveCount(0);
   expect(refreshes).toBe(2);
 

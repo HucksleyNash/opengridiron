@@ -20,6 +20,79 @@ from ..schemas import PlayerArticle, PlayerInjuryReport, PlayerReportSource
 from .news import INJURY_WORDS, _published
 
 NFL_INJURIES_URL = "https://www.nfl.com/injuries/"
+TEAM_NAMES = dict(
+    zip(
+        (
+            "Cardinals",
+            "Falcons",
+            "Ravens",
+            "Bills",
+            "Panthers",
+            "Bears",
+            "Bengals",
+            "Browns",
+            "Cowboys",
+            "Broncos",
+            "Lions",
+            "Packers",
+            "Texans",
+            "Colts",
+            "Jaguars",
+            "Chiefs",
+            "Raiders",
+            "Chargers",
+            "Rams",
+            "Dolphins",
+            "Vikings",
+            "Patriots",
+            "Saints",
+            "Giants",
+            "Jets",
+            "Eagles",
+            "Steelers",
+            "49ers",
+            "Seahawks",
+            "Buccaneers",
+            "Titans",
+            "Commanders",
+        ),
+        (
+            "ARI",
+            "ATL",
+            "BAL",
+            "BUF",
+            "CAR",
+            "CHI",
+            "CIN",
+            "CLE",
+            "DAL",
+            "DEN",
+            "DET",
+            "GB",
+            "HOU",
+            "IND",
+            "JAX",
+            "KC",
+            "LV",
+            "LAC",
+            "LAR",
+            "MIA",
+            "MIN",
+            "NE",
+            "NO",
+            "NYG",
+            "NYJ",
+            "PHI",
+            "PIT",
+            "SF",
+            "SEA",
+            "TB",
+            "TEN",
+            "WAS",
+        ),
+        strict=True,
+    )
+)
 NEWS_DAYS = 30
 CACHE_SECONDS = 600
 _cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
@@ -37,6 +110,30 @@ def _name(value: str) -> str:
 
 def _base_name(value: str) -> str:
     return re.sub(r"\s+(jr|sr|ii|iii|iv)$", "", _name(value))
+
+
+def report_team(value: str) -> str:
+    value = value.strip()
+    for name, abbreviation in TEAM_NAMES.items():
+        if value.lower() == name.lower() or value.lower().endswith(" " + name.lower()):
+            return abbreviation
+    return {
+        "AZ": "ARI",
+        "JAC": "JAX",
+        "WSH": "WAS",
+        "WFT": "WAS",
+        "LA": "LAR",
+        "OAK": "LV",
+        "SD": "LAC",
+    }.get(value.upper(), value.upper())
+
+
+def matches_report(player: Player, row: dict) -> bool:
+    return (
+        _base_name(row["player_name"]) == _base_name(player.name)
+        and report_team(row["team"]) == report_team(player.pro_team)
+        and (not row.get("position") or row["position"] == player.position)
+    )
 
 
 def matches_player(name: str, text: str) -> bool:
@@ -79,6 +176,7 @@ def parse_injuries(content: str) -> list[dict[str, str]]:
             rows.append(
                 {
                     "player_name": values["Player"],
+                    "position": values.get("Position", ""),
                     "team": team.get_text(" ", strip=True) if team else "Not supplied",
                     "injury": values["Injuries"] or "Not specified",
                     "practice_status": values["Practice Status"] or "Not specified",
@@ -167,6 +265,17 @@ async def _public_source(
     return items, source
 
 
+async def official_injury_reports(refresh: bool = False):
+    async with httpx.AsyncClient(
+        timeout=10,
+        follow_redirects=True,
+        headers={"User-Agent": "OpenGridiron/0.1 (personal football news reader)"},
+    ) as client:
+        return await _public_source(
+            client, "NFL injury report", NFL_INJURIES_URL, parse_injuries, refresh
+        )
+
+
 def _category(title: str, excerpt: str) -> str:
     # Treat these as injury-related articles, never as a diagnosis for the player.
     words = INJURY_WORDS - {"out", "limited"}
@@ -198,7 +307,7 @@ async def player_reports(db: Session, player: Player, refresh: bool = False) -> 
     reports = [
         PlayerInjuryReport(**row, retrieved_at=injury_source.fetched_at)
         for row in injuries
-        if _base_name(row["player_name"]) == _base_name(player.name)
+        if matches_report(player, row)
     ]
     cutoff = datetime.now(UTC) - timedelta(days=NEWS_DAYS)
     articles = []

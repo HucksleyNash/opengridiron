@@ -119,7 +119,7 @@ test("both routes read the same team and week from the URL without changing save
     const context = html.slice(html.indexOf('class="league-working-context"'), html.indexOf('class="league-view-panel"'));
     assert.match(context, /<option selected="">Team B<\/option>/);
     assert.match(context, /<option value="2" selected="">Week 2<\/option>/);
-    assert.ok(context.includes("Shared across Overview and Forecast"));
+    assert.ok(context.includes("NFL week"));
     if (tab) assert.ok(html.includes("No saved report for Team B · Week 2"));
   }
 });

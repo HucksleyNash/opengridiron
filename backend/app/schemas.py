@@ -491,6 +491,7 @@ class Recommendation(BaseModel):
     subject: str
     player_id: int | None = None
     expected_value: float
+    ranking_basis: Literal["weekly_lineup_gain", "source_points"] | None = None
     confidence: float = Field(ge=0, le=1)
     rationale: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
@@ -560,6 +561,7 @@ class PlayerArticle(BaseModel):
 
 class PlayerInjuryReport(BaseModel):
     player_name: str
+    position: str = ""
     team: str
     injury: str
     practice_status: str

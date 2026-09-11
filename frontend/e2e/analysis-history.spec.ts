@@ -1,3 +1,4 @@
+import { mockAnalysisLibrary, showAnalysisHistory } from "./fixtures/analysis-library";
 import { expect, Page, test } from "@playwright/test";
 
 const savedOutput = {
@@ -64,12 +65,14 @@ async function mockAnalyst(page: Page) {
     }
     return json({ detail: `Unhandled mock route: ${path}` }, 404);
   });
+  await mockAnalysisLibrary(page, () => runs);
 }
 
 test("saved analyst results can be reviewed after returning to the page", async ({ page }) => {
   await mockAnalyst(page);
   await page.goto("/analysis");
 
+  await showAnalysisHistory(page);
   await expect(page.getByRole("heading", { name: "Analysis history" })).toBeVisible();
   await page.getByRole("button", { name: /Should I start Player A or Player B/ }).click();
   await expect(page.locator(".analysis-question")).toContainText("Should I start Player A or Player B?");
@@ -85,6 +88,7 @@ test("a new analysis appears in saved history automatically", async ({ page }) =
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
 
   await expect(page.locator(".analysis-answer")).toContainText("The new analysis was saved.");
+  await showAnalysisHistory(page);
   await expect(page.getByRole("button", { name: /What changed since the last analysis/ })).toBeVisible();
-  await expect(page.locator(".analysis-history-count")).toContainText("2 saved");
+  await expect(page.locator(".analysis-library-count")).toContainText("2 saved");
 });

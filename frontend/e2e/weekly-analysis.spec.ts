@@ -1,4 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
+import { mockFollowUps } from "./fixtures/analysis-follow-ups";
 
 const generated = "2026-09-04T01:00:00Z";
 function reportFixture() {
@@ -86,20 +87,21 @@ async function mockLeague(page: Page, partial = false, leagueId = 1) {
 
 test("run weekly analysis, compare source periods, and reopen saved report", async ({ page }) => {
   const mocked = await mockLeague(page);
+  const followups = await mockFollowUps(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Command center", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Weekly league analysis" })).toHaveCount(0);
   await page.goto("/leagues/1");
   await expect(page.getByRole("heading", { name: "Test League 1", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Lineup review", exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "Overview", exact: true }).focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("tab", { name: "Forecast", exact: true })).toBeFocused();
-  await expect(page).toHaveURL(/\/leagues\/1\?tab=forecast$/);
+  await page.getByRole("tab", { name: "Roster", exact: true }).focus();
+  await page.keyboard.press("End");
+  await expect(page.getByRole("tab", { name: "Analysis", exact: true })).toBeFocused();
+  await expect(page).toHaveURL(/\/leagues\/1\?tab=analysis$/);
   await expect(page.getByRole("heading", { name: "Weekly league analysis" })).toBeVisible();
   await expect(page.getByLabel("Analysis league", { exact: true })).toHaveCount(0);
   const button = page.getByRole("button", { name: "Run league analysis", exact: true });
-  const context = page.getByRole("group", { name: "Team and week for both league views" });
+  const context = page.getByRole("group", { name: "Team and week" });
   await expect(context.getByRole("combobox", { name: "Fantasy team", exact: true })).toHaveValue("My Team");
   await expect(button).toBeEnabled();
   await button.click();
@@ -108,8 +110,21 @@ test("run weekly analysis, compare source periods, and reopen saved report", asy
   await page.getByText("Analyst briefing · recommendations and risks", { exact: true }).click();
   await expect(page.getByText("Prioritize the supported lineup improvement.")).toBeVisible();
   await expect(page.getByText("Recheck before acting.")).toBeVisible();
-  const followup = new URL(await page.getByRole("link", { name: "Ask a follow-up about this report", exact: true }).getAttribute("href") || "", page.url());
+  const followup = new URL(await page.getByRole("link", { name: "Open report in Analyst desk", exact: true }).getAttribute("href") || "", page.url());
   expect(Object.fromEntries(followup.searchParams)).toEqual({ league_id: "1", league_report_id: "1", team_name: "My Team", week: "1" });
+  await expect(page.getByRole("link", { name: "Ask a follow-up about this report", exact: true })).toHaveAttribute("href", "#weekly-follow-up");
+  const thread = page.getByRole("region", { name: "Follow-up questions" });
+  await thread.getByRole("textbox").fill("Why this lineup?");
+  await thread.getByRole("button", { name: "Ask follow-up" }).click();
+  await expect(thread).toContainText("Follow-up answer 700");
+  await thread.getByRole("textbox").fill("What about the bench?");
+  await thread.getByRole("button", { name: "Ask follow-up" }).click();
+  await expect(thread).toContainText("Follow-up answer 701");
+  expect(followups.requests).toEqual([
+    { task: "chat", question: "Why this lineup?", league_report_id: 1, provider_id: 1 },
+    { task: "chat", question: "What about the bench?", parent_run_id: 700, provider_id: 1 },
+  ]);
+  await expect(page).toHaveURL(/\/leagues\/1\?tab=analysis$/);
   await expect(page.getByRole("article", { name: "Evaluate Waiver Target" })).toBeVisible();
   await expect(page.getByText("Not comparable", { exact: true })).toHaveCount(3);
   await expect(page.locator('a[href^="javascript:"]')).toHaveCount(0);
@@ -124,7 +139,7 @@ test("run weekly analysis, compare source periods, and reopen saved report", asy
   await page.screenshot({ path: `/tmp/weekly-analysis-${test.info().project.name}.png`, fullPage: true });
   await context.getByRole("combobox", { name: "Fantasy team", exact: true }).selectOption("Rival");
   await expect(page.getByText("Prioritize the supported lineup improvement.")).toHaveCount(0);
-  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+  await page.getByRole("tab", { name: "Roster", exact: true }).click();
   await expect(page).toHaveURL(/\/leagues\/1\?team=Rival$/);
   await expect(page.getByRole("heading", { name: "Lineup review", exact: true })).toBeVisible();
   expect(mocked.unexpected).toEqual([]);
@@ -136,8 +151,8 @@ test("a direct Forecast link uses the open league and preserves advice on provid
   await page.addInitScript(() => localStorage.setItem("analysis-league", "1"));
   await page.goto("/leagues/2?tab=forecast");
   await expect(page.getByRole("heading", { name: "Test League 2", exact: true })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Forecast", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("group", { name: "Team and week for both league views" }).getByRole("combobox", { name: "Fantasy team", exact: true })).toHaveValue("My Team");
+  await expect(page.getByRole("tab", { name: "Analysis", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("group", { name: "Team and week" }).getByRole("combobox", { name: "Fantasy team", exact: true })).toHaveValue("My Team");
   await page.getByRole("button", { name: "Run league analysis", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My Team · Week 1", exact: true })).toBeVisible({ timeout: 15000 });
   await page.getByText("Analyst briefing · recommendations and risks", { exact: true }).click();

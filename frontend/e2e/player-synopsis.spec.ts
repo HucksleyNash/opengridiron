@@ -40,7 +40,7 @@ test("roster and lineup open the correct player, preserve context and restore ke
   page.on("pageerror", (error) => errors.push(error.message));
   const requests = await mockWorkspace(page, { delay: 250 });
   await page.goto("/leagues/1");
-  const roster = page.getByRole("region", { name: "Current roster", exact: true });
+  const roster = page.getByRole("region", { name: "Team roster 2", exact: true });
   const trigger = roster.getByRole("button", { name: "View Patrick Mahomes synopsis" });
   await trigger.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Patrick Mahomes" });
@@ -64,7 +64,7 @@ test("roster and lineup open the correct player, preserve context and restore ke
   await expect(dialog).not.toBeVisible();
   await expect(trigger).toBeFocused();
   await expect(page.getByRole("combobox", { name: "Fantasy team", exact: true })).toHaveValue("My Team");
-  const recommended = page.getByRole("region", { name: "Recommended starters" });
+  const recommended = roster;
   await recommended.getByRole("button", { name: "View Josh Allen synopsis" }).click();
   const second = page.getByRole("dialog", { name: "Josh Allen" });
   await second.getByRole("tab", { name: "News & sources" }).click();
@@ -73,7 +73,6 @@ test("roster and lineup open the correct player, preserve context and restore ke
   await second.getByRole("button", { name: "Refresh reports", exact: true }).click();
   await expect.poll(() => requests.some((url) => url.endsWith("/8/synopsis?refresh=true"))).toBe(true);
   await second.getByRole("button", { name: "Close player synopsis" }).click();
-  await roster.locator("summary").filter({ hasText: "Bench" }).click();
   await roster.getByRole("button", { name: "View Josh Allen synopsis" }).click();
   await expect(page.getByRole("dialog", { name: "Josh Allen" })).toBeVisible();
   expect(errors).toEqual([]);
@@ -83,7 +82,7 @@ test("failures can retry and empty coverage does not claim the player is healthy
   const options = { fail: true, empty: true };
   await mockWorkspace(page, options);
   await page.goto("/leagues/1");
-  await page.getByRole("region", { name: "Current roster", exact: true }).getByRole("button", { name: "View Patrick Mahomes synopsis" }).click();
+  await page.getByRole("region", { name: "Team roster 2", exact: true }).getByRole("button", { name: "View Patrick Mahomes synopsis" }).click();
   const dialog = page.getByRole("dialog", { name: "Patrick Mahomes" });
   await expect(dialog.getByRole("alert")).toContainText("Reports temporarily unavailable");
   await expect(dialog.getByRole("heading", { name: "Player overview" })).toBeVisible();
@@ -98,7 +97,7 @@ test("failures can retry and empty coverage does not claim the player is healthy
 test("partial source failures retain and label previously fetched reports", async ({ page }) => {
   await mockWorkspace(page, { partial: true });
   await page.goto("/leagues/1");
-  await page.getByRole("region", { name: "Current roster", exact: true }).getByRole("button", { name: "View Patrick Mahomes synopsis" }).click();
+  await page.getByRole("region", { name: "Team roster 2", exact: true }).getByRole("button", { name: "View Patrick Mahomes synopsis" }).click();
   const dialog = page.getByRole("dialog", { name: "Patrick Mahomes" });
   await expect(dialog.getByText("Some sources are unavailable or out of date. Available reports are shown below.")).toBeVisible();
   await expect(dialog.getByText("Previously retrieved report; current status could not be verified.")).toBeVisible();

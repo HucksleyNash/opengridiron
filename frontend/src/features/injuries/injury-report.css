@@ -1,0 +1,102 @@
+.injury-workspace { min-width: 0; }
+.injury-page-heading, .injury-player > header, .injury-section-heading, .injury-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.injury-page-heading { margin-bottom: 24px; }
+.injury-page-heading h1 { margin: 0; }
+.injury-page-heading p { margin: 8px 0 0; color: var(--muted); }
+.injury-workspace button { min-height: 44px; }
+.injury-counts { display: flex; flex-wrap: wrap; gap: 12px; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted); }
+.injury-counts span { padding-left: 12px; border-left: 1px solid var(--line); }
+.injury-source-status { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 16px 0 24px; padding: 0; list-style: none; color: var(--muted); font-size: 12px; }
+.injury-source-status li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.injury-source-status p { width: 100%; margin: 0; font-size: 16px; }
+.injury-source-status a, .injury-workspace a { overflow-wrap: anywhere; }
+.injury-workspace a { color: var(--orange); text-underline-offset: 3px; }
+.injury-workspace a:hover { color: var(--orange-strong); text-decoration: underline; }
+.injury-workspace a svg { vertical-align: middle; margin-left: 4px; }
+.injury-source-dot { height: 6px; width: 6px; border-radius: 50%; background: var(--orange); flex: 0 0 auto; }
+.injury-source-dot.stale, .injury-source-dot.unavailable { background: var(--yellow); }
+.injury-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.injury-workspace label { display: flex; flex-direction: column; gap: 8px; color: var(--muted); font-size: 12px; min-width: 0; }
+.injury-filters > label:not(.injury-mine) { flex: 1 1 130px; }
+.injury-filters .injury-search { flex: 2 1 220px; }
+.injury-search > div { position: relative; }
+.injury-search svg { position: absolute; top: 14px; left: 12px; color: var(--muted); }
+.injury-search input { padding-left: 36px; }
+.injury-workspace input, .injury-workspace select { min-height: 44px; width: 100%; }
+.injury-workspace .injury-mine { display: flex; flex-direction: row; align-items: center; gap: 8px; min-height: 44px; color: var(--ink); font-size: 14px; }
+.injury-mine input { width: 18px; min-height: 18px; height: 18px; accent-color: var(--orange); }
+.injury-content { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 24px; align-items: start; }
+.injury-content.has-selection { grid-template-columns: minmax(0, 1.2fr) minmax(360px, 1fr); }
+.injury-list, .injury-player { min-width: 0; }
+.injury-list-heading { margin-bottom: 12px; }
+.injury-list-heading h2 { margin: 0; }
+.injury-list-heading > span, .injury-meta { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; line-height: 1.6; }
+.injury-table-wrap { width: 100%; overflow-x: auto; }
+.injury-workspace table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
+.injury-workspace th { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500; text-align: left; text-transform: uppercase; color: var(--muted); }
+.injury-workspace th, .injury-workspace td { padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: normal; overflow-wrap: anywhere; }
+.injury-workspace th:first-child { width: 31%; }
+.injury-workspace th:last-child { width: 23%; }
+.injury-workspace tr.is-selected { background: var(--panel-raised); }
+.injury-player-link { display: block; padding: 0; border: none; background: none; color: var(--ink); text-align: left; font-weight: 600; line-height: 1.4; }
+.injury-player-link:hover, .is-selected .injury-player-link { color: var(--orange); background: transparent; }
+.injury-workspace td small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.injury-owned { color: var(--orange); }
+.injury-designation { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.injury-designation.urgent { color: var(--red); }
+.injury-designation.questionable, .injury-warning { color: var(--yellow); }
+.injury-warning, .injury-error { font-size: 16px; line-height: 1.6; }
+.injury-note { color: var(--muted); font-size: 16px; line-height: 1.6; margin: 16px 0; }
+.injury-more { width: 100%; margin-top: 12px; }
+.injury-empty { padding: 24px 0; }
+.injury-player { padding-left: 24px; border-left: 1px solid var(--line); }
+.injury-player h2 { margin: 0; scroll-margin-top: 24px; }
+.injury-player h3 { margin: 0 0 12px; }
+.injury-player h4 { font-family: "IBM Plex Sans", sans-serif; font-size: 14px; margin: 0 0 8px; }
+.injury-player p { line-height: 1.65; max-width: 72ch; }
+.injury-ai, .injury-reports, .injury-news { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 24px; }
+.injury-ai > p { font-size: 16px; }
+.injury-ai-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.injury-ai-actions label { flex: 1 1 200px; }
+.injury-ai-actions button { flex: 0 0 auto; }
+.injury-history { margin-top: 16px; }
+.injury-check-result { margin-top: 24px; }
+.injury-outlook { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 12px 0; border-block: 1px solid var(--line); }
+.injury-outlook strong { font-family: "Barlow Condensed", sans-serif; font-size: 24px; font-weight: 600; }
+.injury-outlook > span { color: var(--muted); font-size: 12px; }
+.injury-finding { margin-top: 24px; }
+.injury-finding p { margin: 0; font-size: 16px; }
+.injury-finding ul { list-style: none; padding: 0; margin-top: 8px; font-size: 12px; }
+.injury-finding small, .injury-news small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.injury-caveats, .injury-rosters { margin-top: 24px; font-size: 16px; }
+.injury-workspace summary { min-height: 44px; cursor: pointer; line-height: 1.5; }
+.injury-caveats li { margin: 12px 0; }
+.injury-report-entry { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.injury-report-entry dl { display: grid; gap: 12px; margin: 16px 0; }
+.injury-report-entry dl > div { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 12px; }
+.injury-report-entry dt { color: var(--muted); font-size: 12px; }
+.injury-report-entry dd { margin: 0; font-size: 14px; }
+.injury-rosters ul, .injury-news ol { list-style: none; padding: 0; }
+.injury-rosters li, .injury-news li { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.injury-rosters li span { display: block; color: var(--muted); font-size: 14px; margin-top: 4px; }
+.injury-news li > a { font-size: 16px; font-weight: 500; }
+.injury-news li p { margin: 8px 0; }
+.injury-workspace :focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
+@media (min-width: 1101px) and (max-width: 1400px) { .has-selection .injury-practice-cell { display: none; } .has-selection th:first-child { width: 42%; } .has-selection th:last-child { width: 29%; } }
+@media (max-width: 1100px) {
+  .injury-content.has-selection { grid-template-columns: minmax(0, 1fr); }
+  .injury-player { border-left: none; padding-left: 0; border-top: 1px solid var(--line); padding-top: 24px; }
+}
+@media (max-width: 600px) {
+  .injury-page-heading { align-items: start; flex-wrap: wrap; }
+  .injury-filters { gap: 12px; }
+  .injury-filters > label:not(.injury-mine) { flex-basis: calc(50% - 12px); }
+  .injury-filters > label.injury-search { flex-basis: 100%; }
+  .injury-practice-cell { display: none; }
+  .injury-workspace th:first-child { width: 43%; }
+  .injury-workspace th:last-child { width: 30%; }
+  .injury-workspace th, .injury-workspace td { padding: 12px 4px; }
+  .injury-section-heading { align-items: start; flex-wrap: wrap; }
+  .injury-ai-actions { align-items: stretch; }
+  .injury-ai-actions button { width: 100%; }
+}

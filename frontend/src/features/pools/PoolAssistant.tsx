@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { api, post } from "../../api";
 import type { AnalysisResult, PoolWeek, Provider, WeeklyCard, WeeklyPickDraft } from "../../types";
 import { poolKeys } from "./api";
+import { AnalysisFollowUp } from "../analysis/AnalysisFollowUp";
 
 type Freshness = {
   status: "ready" | "partial" | "running";
@@ -138,7 +139,8 @@ export function PoolAssistant({ data, busy, onApplying, onReadiness }: {
         {changed && <p>The saved card changed. Analyze again before setting picks.</p>}
         <button className="primary" disabled={!proposal.can_apply || unavailable || Boolean(changed) || busy || refreshing || analyze.isPending || apply.isPending || checkIn.data?.status !== "ready" || Boolean(sourceError)} onClick={() => apply.mutate()}>{apply.isPending ? "Checking and saving…" : "Set AI picks"}</button>
       </>}
-      <p><Link to={`/analysis?parent_run_id=${proposal.run_id}`}>Ask a follow-up about this analysis</Link></p>
+      <p><Link to={`/analysis?parent_run_id=${proposal.run_id}`}>Open in Analyst desk</Link></p>
+      <AnalysisFollowUp key={proposal.run_id} source={{ parent_run_id: proposal.run_id }} providerId={providerId} disabled={analyze.isPending} />
     </div>}
     {apply.error && <p role="alert">{apply.error.message}</p>}
   </section>;

@@ -395,10 +395,14 @@ def test_bye_is_zero_only_with_a_complete_verified_schedule():
     row = forecast_players(league, players, complete, 1, stats, identities, NOW)[0]
     assert row["points"] == 0
     assert "Bye week" in row["warnings"][0]
-    assert (
-        forecast_players(league, players, complete[:1], 1, stats, identities, NOW)[0]["points"]
-        is None
-    )
+    assert row["bye"] is True
+    assert row["kickoff"] is None
+    incomplete = forecast_players(league, players, complete[:1], 1, stats, identities, NOW)[0]
+    assert incomplete["points"] is None
+    assert incomplete["bye"] is False
+    scheduled = forecast_players(league, players, games, 1, stats, identities, NOW)[0]
+    assert scheduled["bye"] is False
+    assert scheduled["kickoff"] == games[0].kickoff.isoformat()
 
 
 def test_source_outage_saves_explicit_partial_report(client, saved_league, monkeypatch):

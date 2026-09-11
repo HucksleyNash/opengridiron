@@ -47,6 +47,23 @@ export const LINEUP_MODES: Record<LineupMode, { label: string; description: stri
   ceiling: { label: "Ceiling", description: "Maximize weekly upper estimates. Not a guaranteed maximum." },
 };
 
+export function weeklyPoints(forecast: Forecast | undefined, mode: LineupMode) {
+  return forecast?.[mode === "balanced" ? "points" : mode] ?? null;
+}
+
+// Shared provenance is checked independently; matching periods do not imply matching sources.
+export function sharedProjectionContext(players: Player[]) {
+  const same = (read: (player: Player) => string) => {
+    const values = [...new Set(players.map(read))];
+    return values.length === 1 ? values[0] : null;
+  };
+  return {
+    period: same((player) => projectionPeriod(player.projection)),
+    source: same((player) => player.projection?.source || "Source not recorded"),
+    updated: same((player) => player.projection?.source_updated_at || ""),
+  };
+}
+
 export const WAIVER_ROLE_GROUPS: Record<string, string[]> = {
   FLEX: ["RB", "WR", "TE"], "W/R/T": ["RB", "WR", "TE"], "W/R": ["RB", "WR"], "W/T": ["WR", "TE"],
   SUPERFLEX: ["QB", "RB", "WR", "TE"], "Q/W/R/T": ["QB", "RB", "WR", "TE"], OP: ["QB", "RB", "WR", "TE"],
@@ -93,4 +110,10 @@ export function lineupChanges(roster: Player[], lineup: LineupRecommendation, sl
     start: lineup.assignments.filter(({ player }) => !currentIds.has(player.id)),
     bench: current.filter((player) => !recommendedIds.has(player.id)),
   };
+}
+
+export function scoringLabel(key: string) {
+  const defaulted = key.includes("yahoo_default");
+  const label = key.replaceAll("_yahoo_default", "").replaceAll("_", " ").replace(/\btds\b/g, "touchdowns").replace(/\btd\b/g, "touchdown");
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}${defaulted ? " (Yahoo default)" : ""}`;
 }

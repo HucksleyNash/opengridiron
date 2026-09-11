@@ -51,3 +51,21 @@ test("projection summaries never turn missing dates or mixed periods into fresh 
   assert.equal(rosLabel({ ros_value: null, projection: { ros_value_state: "missing" } }), "Not supplied");
   assert.match(rosLabel({ ros_value: 0 }), /legacy input, unverified/);
 });
+
+test("weekly objective values do not substitute source totals or central values", async () => {
+  const { weeklyPoints } = await import("../src/features/leagues/league-display.ts");
+  assert.equal(weeklyPoints({ points: 15.1, floor: 7.2, ceiling: 24 }, "floor"), 7.2);
+  assert.equal(weeklyPoints({ points: 15.1, floor: 7.2, ceiling: 24 }, "balanced"), 15.1);
+  assert.equal(weeklyPoints({ points: 15.1, floor: null, ceiling: 0 }, "ceiling"), 0);
+  assert.equal(weeklyPoints({ points: 15.1, floor: null }, "floor"), null);
+  assert.equal(weeklyPoints(undefined, "balanced"), null);
+});
+
+test("shared source summaries retain independent period, provider, and timestamp exceptions", async () => {
+  const { sharedProjectionContext, scoringLabel } = await import("../src/features/leagues/league-display.ts");
+  const a = { projection: { source: "Yahoo", period: "season", season: 2026, source_updated_at: null } };
+  const b = { projection: { source: "Other", period: "week", season: 2026, week: 2, source_updated_at: "2026-09-02" } };
+  assert.deepEqual(sharedProjectionContext([a, a]), { source: "Yahoo", period: "2026 · Full season", updated: "" });
+  assert.deepEqual(sharedProjectionContext([a, b]), { source: null, period: null, updated: null });
+  assert.equal(scoringLabel("passing_yards_yahoo_default"), "Passing yards (Yahoo default)");
+});

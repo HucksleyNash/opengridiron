@@ -1,4 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
+import { mockFollowUps } from "./fixtures/analysis-follow-ups";
 
 const schedule = { state: "ready", source: "nflverse.schedule", last_success_at: "2026-09-08T12:00:00Z" };
 const rules = {
@@ -218,9 +219,21 @@ test("opening and returning to a pool checks sources and supports a manual refre
 for (const confidence of [false, true]) {
   test(`AI previews and saves a ${confidence ? "confidence" : "survivor"} card`, async ({ page }, testInfo) => {
     const mocked = await mockApp(page, { ai: true, confidence });
+    const followups = await mockFollowUps(page);
     await page.goto(`/pools/${mocked.poolId}/weeks/1?entry_id=${mocked.entryId}`);
     await page.getByRole("button", { name: "Analyze picks" }).click();
     await expect(page.getByText("Pool analysis is ready")).toBeVisible();
+    const thread = page.getByRole("region", { name: "Follow-up questions" });
+    await thread.getByRole("textbox").fill("Why choose this team?");
+    await thread.getByRole("button", { name: "Ask follow-up" }).click();
+    await expect(thread).toContainText("Follow-up answer 700");
+    await thread.getByRole("textbox").fill("What is the alternative?");
+    await thread.getByRole("button", { name: "Ask follow-up" }).click();
+    await expect(thread).toContainText("Follow-up answer 701");
+    expect(followups.requests).toEqual([
+      { task: "chat", question: "Why choose this team?", parent_run_id: 71, provider_id: 1 },
+      { task: "chat", question: "What is the alternative?", parent_run_id: 700, provider_id: 1 },
+    ]);
     await page.screenshot({ path: testInfo.outputPath("pool-analysis.png"), fullPage: true });
     expect(mocked.getApplies()).toBe(0);
     expect(mocked.getSavedPayload()).toBeUndefined();

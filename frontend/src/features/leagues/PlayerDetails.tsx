@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, RefreshCw, X } from "lucide-react";
 import { useLocation } from "react-router-dom";
@@ -24,12 +24,13 @@ const PlayerDirectoryContext = createContext<PlayerReference[]>([]);
 const PlayerLeagueContext = createContext<number | undefined>(undefined);
 const PlayerMatcherContext = createContext(createPlayerMatcher([]));
 
-export function PlayerDetailsButton({ player, children, initialTab = "overview", ranking, label }: {
-  player: PlayerReference; children?: ReactNode; initialTab?: PlayerTab; ranking?: RankingEvidence; label?: string;
+export function PlayerDetailsButton({ player, children, initialTab = "overview", ranking, label, description }: {
+  player: PlayerReference; children?: ReactNode; initialTab?: PlayerTab; ranking?: RankingEvidence; label?: string; description?: string;
 }) {
   const open = useContext(PlayerDetailsContext);
   const leagueId = useContext(PlayerLeagueContext);
-  return <button type="button" className="player-details-trigger" aria-haspopup="dialog" aria-label={label || `View ${player.name} synopsis`} onClick={(event) => { event.stopPropagation(); open({ player: { ...player, league_id: player.league_id ?? leagueId }, initialTab, ranking }); }}>{children ?? <strong>{player.name}</strong>}</button>;
+  const descriptionId = useId();
+  return <button type="button" className="player-details-trigger" aria-haspopup="dialog" aria-label={label || `View ${player.name} synopsis`} aria-describedby={description ? descriptionId : undefined} onClick={(event) => { event.stopPropagation(); open({ player: { ...player, league_id: player.league_id ?? leagueId }, initialTab, ranking }); }}>{children ?? <strong>{player.name}</strong>}{description && <span className="sr-only" id={descriptionId}>{description}</span>}</button>;
 }
 
 export function PlayerMentions({ text, players, leagueId, href }: { text: string; players?: PlayerReference[]; leagueId?: number; href?: string }) {

@@ -46,10 +46,10 @@ function render(overrides = {}) {
 
 test("lineup shows API comparison, true start/bench changes, unfilled slots, and model caveats", () => {
   const html = render();
-  for (const text of ["Potential change", "+10.0", "Start Bench Runner", "Bench Current Runner", "Unfilled starter slots:", "projection period unknown", "Source update times not supplied", "may replace stored projections", "Prediction confidence is not calibrated"]) assert.ok(html.includes(text), text);
+  for (const text of ["Potential change", "+10.0", "Start <strong>Bench Runner", "bench <strong>Current Runner", "Unfilled starter slots:", "Source update times not supplied", "may replace stored projections", "Prediction confidence is not calibrated"]) assert.ok(html.includes(text), text);
   assert.match(html, /aria-pressed="true">Balanced/);
   assert.ok(html.indexOf("lineup-review-heading") < html.indexOf("current-roster-heading"));
-  assert.match(html, /<summary>Bench · 1 player<\/summary>/);
+  assert.match(html, /league-roster-group">Bench<\/span>/);
   assert.ok(!html.includes("Next projection 50.0"));
   assert.ok(renderToStaticMarkup(h(ProjectionDetails, { player: players[2], ranking: waivers[0] })).includes("0.0 · legacy input, unverified"));
   assert.ok(html.includes('aria-label="Ranking details for Free Agent"'));
@@ -104,20 +104,22 @@ test("source context separates publication and receipt times and preserves missi
 
 test("recommended, current and bench roster rows display weekly values while source projections retain season totals", () => {
   const html = render();
-  const rosters = html.slice(html.indexOf('<div class="league-roster-grid">'), html.indexOf('id="player-projections"'));
-  assert.ok(rosters.includes("Week 1 pts"));
-  assert.ok(rosters.includes('class="numeric">10.0</td>'));
-  assert.ok(rosters.includes('class="numeric">20.0</td>'));
+  const rosters = html.slice(html.indexOf('<table class="league-unified-table"'), html.indexOf('id="league-view-panel-waivers"'));
+  assert.ok(rosters.includes("Balanced pts"));
+  assert.ok(rosters.includes('10.0</td>'));
+  assert.ok(rosters.includes('20.0</td>'));
   assert.ok(!rosters.includes("180.0") && !rosters.includes("360.0"));
-  assert.ok(html.includes("180.0") && html.includes("360.0"));
-  assert.ok(html.includes("Open Gridiron weekly projections"));
+  assert.equal((rosters.match(/aria-label="View Current Runner synopsis"/g) || []).length, 1);
+  assert.equal((rosters.match(/aria-label="View Bench Runner synopsis"/g) || []).length, 1);
+  assert.ok(!html.includes("Recommended starters"));
+  assert.ok(html.includes("Open Gridiron weekly model"));
 });
 
 test("missing weekly projections never fall back to season totals and explicit weekly zero stays zero", () => {
   const html = render({ lineup: { ...lineup, forecasts: [{ player_id: 1, points: null }, { player_id: 2, points: 0 }], current_total: null, projected_total: null, projected_gain: null, assignments: [{ slot: "RB", player_id: 1, score: null, action: "Hold", reason: "Missing history" }] } });
-  const rosters = html.slice(html.indexOf('<div class="league-roster-grid">'), html.indexOf('id="player-projections"'));
+  const rosters = html.slice(html.indexOf('<table class="league-unified-table"'), html.indexOf('id="league-view-panel-waivers"'));
   assert.ok(rosters.includes("Not available"));
-  assert.ok(rosters.includes('class="numeric">0.0</td>'));
+  assert.ok(rosters.includes('0.0</td>'));
   assert.ok(!rosters.includes("180.0") && !rosters.includes("360.0"));
   assert.ok(html.includes("Totals include only modeled players"));
 });

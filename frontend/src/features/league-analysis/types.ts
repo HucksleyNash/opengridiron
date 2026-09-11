@@ -6,6 +6,7 @@ export type Forecast = {
   points: number | null; floor: number | null; ceiling: number | null;
   confidence: string; reason: string | null; warnings: string[]; sample_games: number;
   recent_usage: number | null; baseline_usage: number | null; opponent: string | null;
+  kickoff?: string | null; bye?: boolean;
   source_projection: ProjectionContext & { points: number; comparable: boolean };
   difference: number | null;
 };

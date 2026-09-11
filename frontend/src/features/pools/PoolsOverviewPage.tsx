@@ -1,13 +1,13 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, ChevronRight, Clock3, Plus, RefreshCw, Trophy } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { CardState, Pool } from "../../types";
 import { SleeperPoolDetails, SleeperPoolImport } from "./SleeperPoolImport";
 import { DeletePoolControl } from "./DeletePoolControl";
+import { PoolEntryForm } from "./PoolEntryForm";
 import {
   createPool,
-  createPoolEntry,
   getPoolOverview,
   importSchedule,
   poolKeys,
@@ -24,7 +24,7 @@ const statusLabel: Record<CardState, string> = {
 function ScheduleBadge({ state }: { state: "ready" | "stale" | "missing" }) {
   return <span className={`schedule-badge ${state}`}>
     {state === "ready" ? <Check size={13} /> : state === "stale" ? <Clock3 size={13} /> : <RefreshCw size={13} />}
-    {state === "ready" ? "Schedule ready" : state === "stale" ? "Refresh recommended" : "Importing schedule"}
+    {state === "ready" ? "Schedule ready" : state === "stale" ? "Refresh recommended" : "Schedule missing"}
   </span>;
 }
 
@@ -34,10 +34,11 @@ export function PoolsOverviewPage() {
   const attemptedImports = useRef(new Set<number>());
   const [importing, setImporting] = useState<Set<number>>(new Set());
   const [importErrors, setImportErrors] = useState<Record<number, Error>>({});
-  const [entryNames, setEntryNames] = useState<Record<number, string>>({});
+  const [importedSeasons, setImportedSeasons] = useState<Set<number>>(new Set());
   const [showSettings, setShowSettings] = useState(false);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const [deletedPoolName, setDeletedPoolName] = useState("");
+  const [poolNameError, setPoolNameError] = useState("");
   const [poolDraft, setPoolDraft] = useState({
     name: "",
     pool_type: "survivor" as "survivor" | "confidence",
@@ -55,6 +56,7 @@ export function PoolsOverviewPage() {
     try {
       await importSchedule(season, trigger);
       await queryClient.invalidateQueries({ queryKey: poolKeys.overview });
+      setImportedSeasons((current) => new Set(current).add(season));
     } catch (caught) {
       setImportErrors((current) => ({
         ...current,
@@ -82,20 +84,9 @@ export function PoolsOverviewPage() {
     }
   }, [overview.data]);
 
-  const addEntry = useMutation({
-    mutationFn: ({ poolId, name }: { poolId: number; name: string }) => createPoolEntry(poolId, name),
-    onSuccess: async (_entry, variables) => {
-      setEntryNames((current) => ({ ...current, [variables.poolId]: "" }));
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: poolKeys.overview }),
-        queryClient.invalidateQueries({ queryKey: poolKeys.entries(variables.poolId) }),
-      ]);
-    },
-  });
-
   const addPool = useMutation({
     mutationFn: () => createPool({
-      name: poolDraft.name,
+      name: poolDraft.name.trim(),
       pool_type: poolDraft.pool_type,
       season: new Date().getFullYear(),
       rules: {
@@ -117,13 +108,7 @@ export function PoolsOverviewPage() {
     },
   });
 
-  const submitEntry = (event: FormEvent, poolId: number) => {
-    event.preventDefault();
-    const name = (entryNames[poolId] || "Main entry").trim();
-    if (name) addEntry.mutate({ poolId, name });
-  };
-
-  return <>
+  return <div className="pool-overview-page">
     <header className="page-header pool-page-header">
       <div><span className="eyebrow">Winner · loser · confidence</span><h1>Pool week</h1><p>Open this week, finish every entry, and let the schedule stay current automatically.</p></div>
       <button ref={settingsButton} className="ghost" aria-expanded={showSettings} onClick={() => setShowSettings((value) => !value)}><Plus size={16} />Pool settings</button>
@@ -134,18 +119,27 @@ export function PoolsOverviewPage() {
     {showSettings && <section className="panel pool-settings-panel">
       <SleeperPoolImport />
       <div className="panel-title"><div><span className="eyebrow">Setup</span><h2>Add a pool</h2></div></div>
-      <form className="pool-settings-form" onSubmit={(event) => { event.preventDefault(); addPool.mutate(); }}>
-        <label className="field"><span>Name</span><input value={poolDraft.name} onChange={(event) => setPoolDraft({ ...poolDraft, name: event.target.value })} required /></label>
+      <form className="pool-settings-form" onSubmit={(event) => {
+        event.preventDefault();
+        if (addPool.isPending) return;
+        addPool.reset();
+        if (!poolDraft.name.trim()) { setPoolNameError("Enter a pool name with at least one non-space character."); return; }
+        setPoolNameError("");
+        addPool.mutate();
+      }}>
+        <label className="field"><span>Name (required)</span><input value={poolDraft.name} onChange={(event) => { setPoolDraft({ ...poolDraft, name: event.target.value }); setPoolNameError(""); addPool.reset(); }} maxLength={160} readOnly={addPool.isPending} aria-invalid={Boolean(poolNameError)} aria-describedby={poolNameError ? "pool-name-error" : undefined} required /></label>
         <label className="field"><span>Format</span><select value={poolDraft.pool_type} onChange={(event) => setPoolDraft({ ...poolDraft, pool_type: event.target.value as "survivor" | "confidence" })}><option value="survivor">Winner / loser</option><option value="confidence">Confidence</option></select></label>
         <label className="field"><span>Action</span><select value={poolDraft.direction} onChange={(event) => setPoolDraft({ ...poolDraft, direction: event.target.value as "winner" | "loser" })}><option value="winner">Pick winners</option><option value="loser">Pick losers</option></select></label>
         <label className="field"><span>Scoring</span><select value={poolDraft.basis} onChange={(event) => setPoolDraft({ ...poolDraft, basis: event.target.value as "straight_up" | "against_spread" })}><option value="straight_up">Straight up</option><option value="against_spread">Against the spread</option></select></label>
         <button className="primary" disabled={addPool.isPending}>{addPool.isPending ? "Adding…" : "Add pool"}</button>
       </form>
-      {addPool.error && <div className="error-panel">{addPool.error.message}</div>}
+      {poolNameError && <p id="pool-name-error" className="error-panel" role="alert">{poolNameError}</p>}
+      {addPool.error && <div className="error-panel" role="alert">Could not add this pool. {addPool.error.message} Try Add pool again.</div>}
+      <p className="pool-form-status" role="status">{addPool.isPending ? "Adding pool…" : addPool.isSuccess ? `Pool “${addPool.data.name}” added.` : ""}</p>
     </section>}
 
-    {overview.isLoading && <div className="pool-loading"><span /><p>Loading your pools and this week’s schedule…</p></div>}
-    {overview.error && <div className="error-panel">{overview.error.message}</div>}
+    {overview.isLoading && <div className="pool-loading" role="status"><span aria-hidden="true" /><p>Loading your pools and this week’s schedule…</p></div>}
+    {overview.error && <div className="error-panel" role="alert">Could not load your pools. {overview.error.message} <button disabled={overview.isFetching} onClick={() => void overview.refetch()}>{overview.isFetching ? "Retrying…" : "Retry loading pools"}</button></div>}
     {overview.data && !overview.data.pools.length && <section className="panel pool-empty"><Trophy size={30} /><h2>No pools yet</h2><p>Add your winner, loser, or confidence pool rules to start the weekly flow.</p><button className="primary" onClick={() => setShowSettings(true)}>Add your first pool</button></section>}
 
     <div className="pool-overview-grid">
@@ -159,8 +153,8 @@ export function PoolsOverviewPage() {
           </div>
           <ScheduleBadge state={pool.schedule.state} />
           {pool.sleeper && <SleeperPoolDetails poolId={pool.id} info={pool.sleeper} />}
-          {isImporting && <p className="schedule-message"><RefreshCw className="spin" size={14} /> Loading the {pool.season} NFL schedule…</p>}
-          {importError && <div className="schedule-error"><AlertTriangle size={15} /><span>{importError.message}</span><button onClick={() => void runImport(pool.season, "retry")}>Retry</button></div>}
+          <p className="schedule-message" role="status">{isImporting ? <><RefreshCw className="spin" size={14} aria-hidden="true" /> Loading the {pool.season} NFL schedule…</> : !importError && importedSeasons.has(pool.season) ? `${pool.season} NFL schedule imported.` : ""}</p>
+          {importError && <div className="schedule-error" role="alert"><AlertTriangle size={15} aria-hidden="true" /><span>Could not import the {pool.season} NFL schedule. {importError.message} Retry the import.</span><button onClick={() => void runImport(pool.season, "retry")}>Retry</button></div>}
           <div className="pool-entry-list">
             {pool.entries.map((entry) => <Link className="pool-entry-row" key={entry.id} to={`/pools/${pool.id}/weeks/${pool.suggested_week}?entry_id=${entry.id}`}>
               <span className={`entry-state-dot ${entry.card_state}`} />
@@ -169,10 +163,7 @@ export function PoolsOverviewPage() {
             </Link>)}
             {!pool.entries.length && <div className="pool-no-entry"><p>Add an entry to start making picks.</p></div>}
           </div>
-          <form className="pool-add-entry" onSubmit={(event) => submitEntry(event, pool.id)}>
-            <input aria-label={`New entry for ${pool.name}`} value={entryNames[pool.id] ?? ""} onChange={(event) => setEntryNames((current) => ({ ...current, [pool.id]: event.target.value }))} placeholder="Main entry" />
-            <button disabled={addEntry.isPending}><Plus size={14} />Add entry</button>
-          </form>
+          <PoolEntryForm poolId={pool.id} poolName={pool.name} />
           {showSettings && <DeletePoolControl pool={pool} onDeleted={(name) => {
             setDeletedPoolName(name);
             settingsButton.current?.focus();
@@ -180,5 +171,5 @@ export function PoolsOverviewPage() {
         </article>;
       })}
     </div>
-  </>;
+  </div>;
 }

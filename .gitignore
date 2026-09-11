@@ -61,6 +61,7 @@ codex-home/
 .impeccable/
 .codex/
 .claude/
+/docs/
 /docs/review-artifacts/
 
 # Machine-specific files and editor state.

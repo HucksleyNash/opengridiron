@@ -181,6 +181,7 @@ def rank_waivers(
                 subject=f"{player.name} ({player.position}, {player.pro_team})",
                 player_id=player.id,
                 expected_value=round(score, 2),
+                ranking_basis="weekly_lineup_gain" if gain is not None else "source_points",
                 confidence=0.0,
                 rationale=rationale,
                 risks=[*risks, "Projection accuracy and waiver market are not calibrated."],

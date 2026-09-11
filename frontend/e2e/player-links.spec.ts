@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { mockAnalysisLibrary, showAnalysisHistory } from "./fixtures/analysis-library";
 
 const date = "2026-09-04T12:00:00Z";
 const league = { id: 1, name: "Player link checks", season: 2026, source: "manual", team_names: ["My Team"], my_team_name: "My Team", scoring: {}, roster_slots: ["QB", "BN"], player_count: 3 };
@@ -57,6 +58,7 @@ async function mockApp(page: Page, options: { complete?: boolean; fail?: boolean
     if (path.endsWith("/news/items")) return json([{ id: 1, title: "Josh Allen prepares for opener", excerpt: "C.J. Stroud also practiced.", category: "news", severity: "medium", canonical_url: "https://example.com/story", published_at: date }]);
     return json([]);
   });
+  await mockAnalysisLibrary(page, () => [{ id: 40, task: "chat", question: "Compare Josh Allen with Patrick Mahomes", provider: "Test", model: "Test", status: "completed", output, created_at: date }]);
   return { writes, requests };
 }
 
@@ -129,8 +131,9 @@ test("Command Center, news and saved analyst text link players without nesting i
   await checkPlayer(page, page.locator(".news-feed").getByRole("button", { name: "View C.J. Stroud synopsis" }), stroud.name);
   await expect(page.getByRole("link", { name: "Read article" })).toHaveAttribute("href", "https://example.com/story");
   await page.goto("/analysis");
-  await checkPlayer(page, page.locator(".analysis-history").getByRole("button", { name: "View Patrick Mahomes synopsis" }), mahomes.name);
+  await showAnalysisHistory(page);
   await page.getByRole("button", { name: /Open saved analysis:/ }).click();
+  await checkPlayer(page, page.locator(".analysis-question").getByRole("button", { name: "View Patrick Mahomes synopsis" }), mahomes.name);
   await checkPlayer(page, page.locator(".analysis-answer ol").getByRole("button", { name: "View Josh Allen synopsis" }), allen.name);
   expect(await page.locator("button button, a button, button a").count()).toBe(0);
 });

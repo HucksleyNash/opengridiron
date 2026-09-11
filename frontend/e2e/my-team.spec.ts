@@ -32,9 +32,11 @@ async function mockApi(context: BrowserContext, leagues: ReturnType<typeof fixtu
   });
 }
 
-const workingTeam = (page: Page) => page.getByRole("group", { name: "Team and week for both league views" }).getByRole("combobox", { name: "Fantasy team", exact: true });
+const workingTeam = (page: Page) => page.getByRole("group", { name: "Team and week" }).getByRole("combobox", { name: "Fantasy team", exact: true });
 const savedTeam = (page: Page) => page.locator(".league-team-setting > summary");
 async function teamSetting(page: Page) {
+  const tools = page.locator("#league-data-tools");
+  if (await tools.getAttribute("open") === null) await tools.locator(":scope > summary").click();
   const setting = page.locator(".league-team-setting");
   if (await setting.getAttribute("open") === null) await setting.locator("summary").click();
   return page.getByRole("combobox", { name: "My team", exact: true });
@@ -54,7 +56,7 @@ test("my team is saved per league across navigation, reloads, Forecast and new d
   await page.reload();
   await expect(workingTeam(page)).toHaveValue("Alpha");
   await expect(savedTeam(page)).toContainText("My team: Bravo");
-  await page.getByRole("tab", { name: "Forecast", exact: true }).click();
+  await page.getByRole("tab", { name: "Analysis", exact: true }).click();
   await expect(workingTeam(page)).toHaveValue("Alpha");
   await chooseMyTeam(page, "Alpha");
   await expect(workingTeam(page)).toHaveValue("Alpha");
@@ -67,6 +69,7 @@ test("my team is saved per league across navigation, reloads, Forecast and new d
   await chooseMyTeam(page, "Alpha");
   await page.goto("/leagues/1");
   await expect(savedTeam(page)).toContainText("My team: Bravo");
+  await teamSetting(page);
   await page.getByRole("link", { name: "Open draft room", exact: true }).click();
   await expect(page.getByLabel("Your slot", { exact: true })).toHaveValue("2");
   const freshContext = await browser.newContext({ serviceWorkers: "block" });
@@ -104,7 +107,7 @@ test("an unavailable saved team is explicit and never silently replaced", async 
   await page.goto("/leagues/1");
   await expect(page.getByText("Your saved team is no longer in the imported teams.", { exact: false })).toBeVisible();
   await expect(workingTeam(page)).toHaveValue("");
-  await page.getByRole("tab", { name: "Forecast", exact: true }).click();
+  await page.getByRole("tab", { name: "Analysis", exact: true }).click();
   await expect(page.getByRole("button", { name: "Run league analysis", exact: true })).toBeDisabled();
   await chooseMyTeam(page, "Bravo");
   await expect(workingTeam(page)).toHaveValue("Bravo");

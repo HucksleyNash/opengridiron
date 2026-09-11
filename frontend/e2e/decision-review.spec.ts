@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockFollowUps } from "./fixtures/analysis-follow-ups";
 
 const output = {
   summary: "Review the current roster before the next pick.",
@@ -69,7 +70,7 @@ test("draft updates preserve a pending review, its answer, and selected analyst"
   }
   await expect(panel).toContainText(output.summary);
   await expect(panel.getByRole("status")).toContainText("The draft changed");
-  await expect(panel.getByRole("link", { name: "Ask a follow-up" })).toHaveAttribute("href", "/analysis?parent_run_id=101");
+  await expect(panel.getByRole("link", { name: "Open in Analyst desk" })).toHaveAttribute("href", "/analysis?parent_run_id=101");
   await page.getByRole("button", { name: "Resume", exact: true }).click();
   await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
   await expect(panel).toContainText(output.summary);
@@ -91,7 +92,13 @@ test("saved reviews restore after reload and remain scoped to their draft", asyn
   await page.reload();
   await expect(panel).toContainText(output.summary);
   await expect(panel).toContainText("Saved review");
-  await expect(panel.getByRole("link", { name: "Ask a follow-up" })).toHaveAttribute("href", "/analysis?parent_run_id=102");
+  await expect(panel.getByRole("link", { name: "Open in Analyst desk" })).toHaveAttribute("href", "/analysis?parent_run_id=102");
+  const followups = await mockFollowUps(page);
+  const thread = panel.getByRole("region", { name: "Follow-up questions" });
+  await thread.getByRole("textbox").fill("Why that position?");
+  await thread.getByRole("button", { name: "Ask follow-up" }).click();
+  await expect(thread).toContainText("Follow-up answer 700");
+  expect(followups.requests[0]).toEqual({ task: "chat", question: "Why that position?", parent_run_id: 102, provider_id: 1 });
   await page.locator(".draft-session-switcher > button:not(.active)").filter({ hasText: "Mock · live" }).click();
   await expect(panel).not.toContainText(output.summary);
   await page.locator(".draft-session-switcher > button:not(.active)").filter({ hasText: "Mock · live" }).click();

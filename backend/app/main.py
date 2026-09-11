@@ -19,10 +19,13 @@ from .draft.router import router as draft_router
 from .draft.simulation import recover_interrupted_computations
 from .models import Owner
 from .pool_errors import PoolDomainError
+from .routes.analysis_library import router as analysis_library_router
+from .routes.injuries import router as injuries_router
 from .routes.league_analysis import router as league_analysis_router
 from .routes.pools import router as pools_router
 from .scheduler import recover_source_jobs, start_scheduler, stop_scheduler
 from .security import hash_password
+from .services.injury_report import recover_injury_checks
 from .services.league_analysis import recover_league_analyses
 from .services.news import ensure_default_sources
 
@@ -57,6 +60,7 @@ async def lifespan(_app: FastAPI):
         ensure_default_sources(db)
         recover_interrupted_computations(db)
         recover_league_analyses(db)
+        recover_injury_checks(db)
         recover_source_jobs(db)
     finally:
         db.close()
@@ -171,6 +175,8 @@ def healthz() -> dict[str, str]:
 app.include_router(public_router)
 app.include_router(pools_router)
 app.include_router(league_analysis_router)
+app.include_router(analysis_library_router)
+app.include_router(injuries_router)
 if settings.draft_suite_enabled:
     app.include_router(draft_router)
 app.include_router(router)

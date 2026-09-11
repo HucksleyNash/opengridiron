@@ -226,3 +226,35 @@ def test_waiver_query_supports_empty_roster_slot_settings(client, league_id):
     result = client.get(f"/api/v1/leagues/{league_id}/waivers/page")
     assert result.status_code == 200, result.text
     assert result.json()["total"] == 1
+
+
+@pytest.mark.parametrize(
+    "period,expected", [("week", "weekly_lineup_gain"), ("season", "source_points")]
+)
+def test_waiver_metric_identifies_gain_even_when_zero(client, league_id, period, expected):
+    context = {
+        "period": period,
+        "season": 2026,
+        "scoring_basis": "league_rules",
+        "scoring": {"receptions": 1},
+        **({"week": 1} if period == "week" else {}),
+    }
+    for name, ownership, slot, points in [
+        ("Starter", "Team A", "RB", 20),
+        ("Available", "FA", None, 0),
+    ]:
+        response = client.post(
+            f"/api/v1/leagues/{league_id}/players",
+            json=player_payload(
+                name=name,
+                ownership=ownership,
+                rostered_by="Team A" if slot else None,
+                current_slot=slot,
+                projected_points=points,
+                projection=context,
+            ),
+        )
+        assert response.status_code == 201
+    page = client.get(f"/api/v1/leagues/{league_id}/waivers/page?team_name=Team+A").json()
+    assert page["items"][0]["ranking_basis"] == expected
+    assert page["items"][0]["expected_value"] == 0

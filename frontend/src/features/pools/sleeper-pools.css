@@ -10,9 +10,8 @@
 .sleeper-facts small { display: block; margin: 12px 0; }
 .sleeper-facts pre { max-width: 100%; max-height: 320px; overflow: auto; padding: 12px; background: var(--forest); font-size: 12px; }
 .sleeper-source { border-top: 1px solid var(--line); padding-top: 16px; margin: 16px 0; }
-.sleeper-source summary, .sleeper-facts summary { cursor: pointer; padding: 8px 0; }
+.sleeper-source summary, .sleeper-facts summary { cursor: pointer; min-height: 44px; padding: 10px 0; line-height: 24px; }
 .sleeper-notice { color: var(--muted); }
 @media (max-width: 640px) {
   .sleeper-import-form > .field, .sleeper-import-form > button { flex-basis: 100%; width: 100%; }
-  .sleeper-source summary, .sleeper-facts summary { min-height: 44px; }
 }
