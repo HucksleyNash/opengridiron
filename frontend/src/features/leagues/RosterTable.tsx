@@ -41,7 +41,7 @@ export function RosterTable({ roster, slots, weekly, gameForecasts, mode, loadin
         <td role="cell" className="numeric league-roster-points"><span className="league-mobile-label">{weekly ? `Wk ${weekly.week}` : "Weekly"} · {LINEUP_MODES[mode].label}</span>{loading ? "Loading…" : points(weeklyPoints(forecast, mode))}</td>
         <td role="cell" className="league-roster-attention">
           {action && <strong className="league-positive">{action}</strong>}
-          {forecast?.locked && <span>Game locked</span>}
+          {forecast?.locked && (assignment?.reason || forecast.reason) !== "Game locked" && <span>Game locked</span>}
           {(!player.status || player.status.toLowerCase() !== "active") && <span className="league-injury">{player.status || "Status unknown"}{forecast?.conditional ? " · conditional on playing" : ""}</span>}
           {assignment?.reason && <span>{assignment.reason}</span>}
           {!assignment?.reason && forecast?.reason && <span>{forecast.reason}</span>}
