@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from app.models import Game, Player, Pool, PoolEntry, PoolPick
@@ -14,6 +14,8 @@ from app.services.decision import (
 )
 from app.services.modeling import brier_score, team_win_probability
 from app.services.projections import calibrated_interval, score_projection
+
+NOW = datetime(2026, 9, 9, tzinfo=UTC)
 
 
 def player(identifier: int, position: str, projection: float, slot: str | None = None) -> Player:
@@ -39,11 +41,11 @@ def game(identifier: int, week: int, away: str, home: str, home_probability: flo
         week=week,
         away_team=away,
         home_team=home,
-        kickoff=datetime(2026, 9, 10, 0, tzinfo=UTC),
+        kickoff=NOW + timedelta(days=1),
         home_win_probability=home_probability,
         home_cover_probability=home_probability - 0.04,
         source="fixture",
-        source_timestamp=datetime.now(UTC),
+        source_timestamp=NOW,
         win_probability_kind="manual",
         cover_probability_kind="manual",
     )
@@ -149,6 +151,7 @@ def test_survivor_respects_reuse_rule_and_loser_direction() -> None:
         entry,
         [game(1, 2, "GB", "CHI", 0.70), game(2, 2, "DET", "MIN", 0.60)],
         2,
+        now=NOW,
     )
     assert all(not item.subject.startswith("GB ") for item in recommendations)
     assert recommendations[0].subject.startswith("DET")
@@ -166,6 +169,7 @@ def test_confidence_weights_follow_probability_order() -> None:
     output = confidence_recommendations(
         pool,
         [game(1, 1, "GB", "CHI", 0.55), game(2, 1, "DET", "MIN", 0.82)],
+        now=NOW,
     )
     assert output[0]["confidence_weight"] == 5
     assert output[0]["pick"] == "MIN"
