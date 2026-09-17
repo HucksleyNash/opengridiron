@@ -116,6 +116,9 @@ async def test_daily_cache_and_real_player_evidence(database, monkeypatch):
     assert len(requests) == 1
     assert first == second
     assert first["status"] == "available" and first["row_count"] == 1
+    forced = await sources.refresh_source(request, force=True)
+    assert len(requests) == 2
+    assert forced["snapshot_id"] != first["snapshot_id"]
     with database() as db:
         row = sources.source_evidence(db, request)["rows"][0]
         assert row["name"] == "Josh Allen" and row["injury_status"] == "Questionable"

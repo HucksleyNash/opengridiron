@@ -150,6 +150,32 @@ def test_check_in_refreshes_existing_inputs_and_shares_cooldown(pool_case):
     assert state["schedule_calls"] == 2
 
 
+def test_analysis_forces_new_evidence_after_check_in(pool_case, monkeypatch):
+    case, state = pool_case, pool_case["state"]
+    calls = []
+
+    async def player_status(request, *, force=False):
+        calls.append(force)
+        return {
+            "name": "Sleeper player status",
+            "status": "available",
+            "required": False,
+            "received_at": datetime.now(UTC).isoformat(),
+        }
+
+    monkeypatch.setattr(pool_analysis, "refresh_source", player_status)
+    case["client"].post(case["base"] + "/check-in" + case["query"])
+    state["probability"] = 0.83
+    result = analyze(case)
+    assert state["schedule_calls"] == 2
+    assert calls == [False, True]
+    assert result["can_apply"], result
+    workspace = state["dossier"]["pool"]["weekly_card"]
+    assert workspace["games"][0]["probabilities"]["home_win"] == 0.83
+    source = next(s for s in result["freshness"]["sources"] if s["name"] == "Sleeper player status")
+    assert source["status"] == "refreshed" and source["checked_at"]
+
+
 def test_partial_refresh_preserves_card_and_does_not_offer_ai_save(pool_case):
     case = pool_case
     case["state"]["schedule_failure"] = True

@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from app.db import SessionLocal
-from app.models import Game, IdentityMap, League, Player
-from app.services.news import _classify
+from app.models import Game, IdentityMap, League, NewsItem, NewsSource, Player
+from app.pool_errors import ScheduleSyncError
+from app.services.news import _classify, _parse_html_items
 from app.services.nflverse import parse_rosters, parse_schedule
 from app.services.yahoo import _apply_settings, _upsert_players
 from fastapi.testclient import TestClient
@@ -14,6 +16,63 @@ from fastapi.testclient import TestClient
 def test_news_classification() -> None:
     assert _classify("Starter ruled out", "Knee injury") == ("injury", "urgent")
     assert _classify("Team signs veteran", "Transaction announced")[0] == "transaction"
+
+
+def test_schedule_promotes_matching_game_id_to_gsis_without_replacing_game(client):
+    header = (
+        "season,game_type,week,gameday,gametime,away_team,home_team,game_id,gsis,"
+        "home_moneyline,away_moneyline\n"
+    )
+    row = "2087,REG,1,2087-09-10,19:20,GB,CHI,2087_01_GB_CHI,{gsis},-140,120"
+    with SessionLocal() as db:
+        parse_schedule(db, header + row.format(gsis=""), 2087)
+        db.commit()
+        game = db.query(Game).filter_by(season=2087).one()
+        game_id = game.id
+        game.locked_at = game.kickoff
+        db.commit()
+        assert parse_schedule(db, header + row.format(gsis="60178"), 2087) == {
+            "created": 0,
+            "updated": 1,
+        }
+        db.commit()
+        db.refresh(game)
+        assert game.id == game_id and game.locked_at is not None
+        assert (game.source_game_key_kind, game.source_game_key) == ("gsis", "60178")
+        with pytest.raises(ScheduleSyncError):
+            parse_schedule(db, header + row.format(gsis="60179"), 2087)
+        db.rollback()
+
+
+def test_schedule_rejects_gsis_promotion_with_mismatched_fallback_id(client):
+    header = "season,game_type,week,gameday,gametime,away_team,home_team,game_id,gsis\n"
+    row = "2086,REG,1,2086-09-10,19:20,GB,CHI,{game_id},{gsis}"
+    with SessionLocal() as db:
+        parse_schedule(db, header + row.format(game_id="original", gsis=""), 2086)
+        db.commit()
+        with pytest.raises(ScheduleSyncError):
+            parse_schedule(db, header + row.format(game_id="different", gsis="60180"), 2086)
+        db.rollback()
+
+
+def test_nfl_news_headline_links_preserve_headline_and_injury_excerpt(client):
+    html = """<html><a href="/news/" data-analytics='{"linkName":"News"}'>News</a>
+    <a href="https://www.nfl.com/news/qb-status"
+       description="Quarterback ruled out with a glute injury."
+       data-analytics='{"linkName":"Starting QB ruled out for Week 2"}'>
+       <span>Desktop headline</span><span>Mobile headline</span></a></html>"""
+    with SessionLocal() as db:
+        source = db.query(NewsSource).filter_by(name="NFL News").first()
+        assert _parse_html_items(db, source, html, require_items=True) == 1
+        db.flush()
+        item = (
+            db.query(NewsItem).filter_by(canonical_url="https://www.nfl.com/news/qb-status").one()
+        )
+        assert item.title == "Starting QB ruled out for Week 2"
+        assert item.excerpt == "Quarterback ruled out with a glute injury."
+        assert item.category == "injury"
+        assert item.published_at is None
+        db.rollback()
 
 
 def test_nflverse_schedule_and_roster_parsing(client: TestClient) -> None:

@@ -260,7 +260,7 @@ def source_summary(evidence: dict) -> dict:
     return {k: v for k, v in evidence.items() if k != "rows"}
 
 
-async def refresh_source(request: SourceRequest) -> dict:
+async def refresh_source(request: SourceRequest, *, force: bool = False) -> dict:
     # Own the session so a source commit cannot commit unrelated caller mutations.
     with (
         SessionLocal() as db,
@@ -275,8 +275,11 @@ async def refresh_source(request: SourceRequest) -> dict:
             return source_summary(source_evidence(db, request))
         latest = _snapshots(db, request).first()
         now = datetime.now(UTC)
-        if latest and now - utc(latest.retrieved_at) < (
-            RETRY_TTL if latest.status == "error" else timedelta(hours=24)
+        if (
+            not force
+            and latest
+            and now - utc(latest.retrieved_at)
+            < (RETRY_TTL if latest.status == "error" else timedelta(hours=24))
         ):
             return source_summary(source_evidence(db, request))
         try:

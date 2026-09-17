@@ -30,13 +30,14 @@ const game = {
   ],
 };
 
-async function mockApp(page: Page, options: { conflict?: boolean; confidence?: boolean; ai?: boolean; partial?: boolean; slowSave?: boolean } = {}) {
+async function mockApp(page: Page, options: { conflict?: boolean; confidence?: boolean; ai?: boolean; partial?: boolean; slowSave?: boolean; missingSuggestions?: boolean; locked?: boolean; aiFailure?: boolean } = {}) {
   const confidence = Boolean(options.confidence);
   const poolId = confidence ? 2 : 1;
   const entryId = confidence ? 22 : 11;
   let savedPayload: Record<string, unknown> | undefined;
   let checkIns = 0;
   let applies = 0;
+  const analyses: Record<string, unknown>[] = [];
   const saves: Record<string, unknown>[] = [];
   let currentCard: Record<string, unknown> | undefined;
   const freshness = { status: options.partial ? "partial" : "ready", checked_at: "2026-09-09T12:00:00Z", sources: [{ name: "NFL schedule, odds and results", status: options.partial ? "unavailable" : "refreshed", checked_at: "2026-09-09T12:00:00Z" }] };
@@ -57,6 +58,11 @@ async function mockApp(page: Page, options: { conflict?: boolean; confidence?: b
   const games = confidence
     ? [{ ...game, suggested_team: "CHI", suggested_confidence: 2 }, secondGame]
     : [game];
+  if (options.missingSuggestions) for (const game of games) {
+    game.recommendations = [];
+    Object.assign(game, { suggested_team: null, suggested_confidence: null });
+  }
+  if (options.locked) games[0].locked = true;
   const pool = {
     id: poolId,
     name: confidence ? "Glascott Confidence Pool" : "Sunday Winner Pool",
@@ -95,7 +101,11 @@ async function mockApp(page: Page, options: { conflict?: boolean; confidence?: b
       currentCard = { version: 1, state: "complete", required_count: games.length, selection_count: games.length, weight_count: confidence ? games.length : null, missing_count: 0, picks: games.map((game, index) => ({ id: 80 + index, game_id: game.id, team: game.home_team, slot: confidence ? null : 1, confidence: confidence ? index + 1 : null, locked: false })), findings: [] };
       return json({ card: currentCard });
     }
-    if (path.endsWith("/analysis")) return json({ run_id: 71, version: 0, can_apply: !options.partial, reason: options.partial ? "Some sources could not refresh. Retry before setting AI picks." : null, freshness, output: { summary: "Pool analysis is ready", recommendations: ["Choose the home team based on the supplied evidence."], risks: ["A favorite can still lose."], missing_information: [], citations: [], picks: games.map((game, index) => ({ game_id: game.id, team: game.home_team, slot: confidence ? null : 1, confidence: confidence ? index + 1 : null })) } });
+    if (path.endsWith("/analysis")) {
+      analyses.push(route.request().postDataJSON());
+      if (options.aiFailure) return json({ message: "Analyst unavailable. Try again." }, 502);
+      return json({ run_id: 71, version: 0, can_apply: !options.partial, reason: options.partial ? "Some sources could not refresh. Retry before setting AI picks." : null, freshness, output: { summary: "Pool analysis is ready", recommendations: ["Choose the home team based on the supplied evidence."], risks: ["A favorite can still lose."], missing_information: [], citations: [], picks: games.map((game, index) => ({ game_id: game.id, team: game.home_team, slot: confidence ? null : 1, confidence: confidence ? index + 1 : null })) } });
+    }
     if (path.endsWith("/standings")) return json({ entries: [], pending_games: 0 });
     if (path.endsWith("/strategy")) return json({ status: "unavailable", reasons: ["Fixture has no future schedule"], recommendations: [] });
     if (path.endsWith("/system/health")) return json({ status: "ok" });
@@ -148,7 +158,7 @@ async function mockApp(page: Page, options: { conflict?: boolean; confidence?: b
     }
     return json({ detail: `Unhandled mock route: ${path}` }, 404);
   });
-  return { poolId, entryId, getSavedPayload: () => savedPayload, getCheckIns: () => checkIns, getApplies: () => applies, getSaves: () => saves };
+  return { poolId, entryId, getSavedPayload: () => savedPayload, getCheckIns: () => checkIns, getApplies: () => applies, getAnalyses: () => analyses, getSaves: () => saves };
 }
 
 test("overview opens the entry and autosaves a winner", async ({ page }) => {
@@ -164,15 +174,38 @@ test("overview opens the entry and autosaves a winner", async ({ page }) => {
   await expect(page.getByText(/Week complete/)).toBeVisible();
 });
 
-test("suggested confidence card fills every game and every weight", async ({ page }) => {
-  const mocked = await mockApp(page, { confidence: true });
+test("suggested confidence card uses AI even without cached suggestions", async ({ page }) => {
+  const mocked = await mockApp(page, { confidence: true, ai: true, missingSuggestions: true });
   await page.goto(`/pools/${mocked.poolId}/weeks/1?entry_id=${mocked.entryId}`);
-  await page.getByRole("button", { name: /Use suggested card/ }).click();
-  await expect.poll(() => mocked.getSavedPayload()).toBeTruthy();
-  const picks = mocked.getSavedPayload()?.picks as Array<Record<string, unknown>>;
-  expect(picks).toHaveLength(2);
-  expect(new Set(picks.map((pick) => pick.confidence))).toEqual(new Set([1, 2]));
+  await expect(page.getByRole("button", { name: /CHI.*68%.*cached/i })).toBeVisible();
+  await page.getByRole("combobox", { name: "Analyst", exact: true }).selectOption("1");
+  await page.getByRole("button", { name: "Use suggested card", exact: true }).click();
+  await expect(page.getByText("AI picks saved for this entry.")).toBeVisible();
+  expect(mocked.getAnalyses()).toEqual([{ provider_id: 1 }]);
+  expect(mocked.getApplies()).toBe(1);
+  expect(mocked.getSavedPayload()).toBeUndefined();
+  // The AI fixture chooses DEN, whereas the old deterministic card chose KC.
+  await expect(page.getByRole("group", { name: "KC at DEN" }).getByRole("button", { name: /DEN/ })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText(/Week complete/)).toBeVisible();
+});
+
+for (const failure of ["partial", "aiFailure"] as const) {
+  test(`suggested card can retry ${failure} without overwriting picks`, async ({ page }) => {
+    const mocked = await mockApp(page, { confidence: true, ai: true, [failure]: true });
+    await page.goto(`/pools/${mocked.poolId}/weeks/1?entry_id=${mocked.entryId}`);
+    const suggest = page.getByRole("button", { name: "Use suggested card", exact: true });
+    await suggest.click();
+    await expect(page.getByRole("alert").filter({ hasText: failure === "partial" ? "Some sources" : "Analyst unavailable" })).toBeVisible();
+    await expect(suggest).toBeEnabled();
+    expect(mocked.getApplies()).toBe(0);
+    expect(mocked.getSavedPayload()).toBeUndefined();
+  });
+}
+
+test("one locked game does not disable suggestions for the remaining games", async ({ page }) => {
+  const mocked = await mockApp(page, { confidence: true, ai: true, locked: true });
+  await page.goto(`/pools/${mocked.poolId}/weeks/1?entry_id=${mocked.entryId}`);
+  await expect(page.getByRole("button", { name: "Use suggested card", exact: true })).toBeEnabled();
 });
 
 test("a stale autosave reloads the canonical card and offers safe reapply", async ({ page }) => {

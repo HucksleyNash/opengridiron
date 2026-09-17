@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Check, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
@@ -13,7 +13,7 @@ import {
 import { assignConfidenceWeight, reapplyUnlockedAttempts } from "./pool-card-state";
 import { useLatestCardAutosave } from "./useLatestCardAutosave";
 import { weeklyCardProgress } from "../../ui-display-state";
-import { PoolAssistant } from "./PoolAssistant";
+import { PoolAssistant, type PoolAssistantHandle } from "./PoolAssistant";
 import { PoolIntelligence } from "./PoolIntelligence";
 import { SleeperPoolDetails } from "./SleeperPoolImport";
 
@@ -52,11 +52,15 @@ function ConfidenceWorkspace({
   draft,
   edit,
   suggestionsEnabled,
+  suggestCard,
+  suggesting,
 }: {
   data: PoolWeek;
   draft: WeeklyPickDraft[];
   edit: (picks: WeeklyPickDraft[]) => void;
   suggestionsEnabled: boolean;
+  suggestCard: () => void;
+  suggesting: boolean;
 }) {
   const weights = data.pool.rules.confidence_weights.length
     ? [...data.pool.rules.confidence_weights].sort((a, b) => a - b)
@@ -81,21 +85,14 @@ function ConfidenceWorkspace({
     if (target) chooseWeight(gameId, target);
   };
 
-  const suggested = () => edit(data.games
-    .filter((game) => game.suggested_team && game.suggested_confidence)
-    .map((game) => ({
-      game_id: game.id,
-      team: game.suggested_team || "",
-      confidence: game.suggested_confidence || null,
-    })));
-
   const reviewMissing = () => document.querySelector<HTMLElement>(".confidence-game.incomplete")?.focus();
 
   return <section className="pool-workspace">
     <div className="workspace-actions">
       <div><span className="eyebrow">Full weekly card</span><h2>{data.card.selection_count} of {data.card.required_count} games picked</h2></div>
-      <div><button className="ghost" onClick={reviewMissing}>Review missing</button><button className="primary" onClick={suggested} disabled={!suggestionsEnabled || data.games.some((game) => game.locked) || !data.games.every((game) => game.suggested_team && game.suggested_confidence)}><Sparkles size={15} />Use suggested card</button></div>
+      <div><button className="ghost" onClick={reviewMissing}>Review missing</button><button className="primary" onClick={suggestCard} disabled={!suggestionsEnabled}><Sparkles size={15} />{suggesting ? "Preparing AI card…" : "Use suggested card"}</button></div>
     </div>
+    <p>Refresh odds, news and player status, then have the selected analyst fill and save your card. Locked picks stay fixed.</p>
     <div className="confidence-list">
       {data.games.map((game) => {
         const pick = findPick(draft, game.id);
@@ -106,8 +103,16 @@ function ConfidenceWorkspace({
             <div className="team-choice-pair" role="group" aria-label={`${game.away_team} at ${game.home_team}`}>
               {[game.away_team, game.home_team].map((team) => {
                 const recommendation = game.recommendations.find((item) => item.team === team);
+                const ats = data.pool.rules.basis === "against_spread";
+                const kind = ats ? game.probabilities.cover_kind : game.probabilities.win_kind;
+                const home = ats ? game.probabilities.home_cover : game.probabilities.home_win;
+                const teamProbability = team === game.home_team ? home : 1 - home;
+                const cachedProbability = data.pool.rules.direction === "loser" ? 1 - teamProbability : teamProbability;
+                const probability = recommendation?.probability ?? (
+                  ["market", "model", "manual"].includes(kind) && Number.isFinite(home) && home > 0 && home < 1 ? cachedProbability : null
+                );
                 return <button key={team} className={pick?.team === team ? "selected" : ""} aria-pressed={pick?.team === team} disabled={game.locked} onClick={() => chooseTeam(game, team)}>
-                  <span>{team}</span>{recommendation && <small>{Math.round(recommendation.probability * 100)}%</small>}
+                  <span>{team}</span><small>{probability === null ? "Probability unavailable" : `${Math.round(probability * 100)}%${!recommendation ? " · cached" : ""}`}</small>
                 </button>;
               })}
             </div>
@@ -200,6 +205,7 @@ function PoolWeekWorkspace() {
   const [conflict, setConflict] = useState<{ attempted: WeeklyPickDraft[]; canonical: WeeklyCard } | null>(null);
   const [applyingAI, setApplyingAI] = useState(false);
   const [sourcesReady, setSourcesReady] = useState(false);
+  const assistant = useRef<PoolAssistantHandle>(null);
 
   useEffect(() => {
     if (entryId && entryId !== requestedEntryId) setSearch({ entry_id: String(entryId) }, { replace: true });
@@ -266,7 +272,7 @@ function PoolWeekWorkspace() {
     })}</div>
 
     {data.pool.sleeper && <SleeperPoolDetails poolId={poolId} info={data.pool.sleeper} />}
-    <PoolAssistant key={`${poolId}:${entryId}:${week}`} data={data} busy={["waiting", "saving", "error", "conflict"].includes(autosave.state)} onApplying={setApplyingAI} onReadiness={setSourcesReady} />
+    <PoolAssistant ref={assistant} key={`${poolId}:${entryId}:${week}`} data={data} busy={["waiting", "saving", "error", "conflict"].includes(autosave.state)} onApplying={setApplyingAI} onReadiness={setSourcesReady} />
     {workspace.error && <p role="alert">The updated card could not load. Cached games and picks are shown. {workspace.error.message}</p>}
     {data.configuration_errors.length > 0 && <div className="error-panel">Pool settings need attention: {data.configuration_errors.map((item) => item.code.replaceAll("_", " ")).join(", ")}.</div>}
     {data.card.findings.length > 0 && <div className="repair-panel"><AlertTriangle size={17} /><div><strong>This card needs repair</strong><p>{data.card.findings.map((item) => item.code.replaceAll("_", " ")).join(" · ")}</p></div></div>}
@@ -274,7 +280,7 @@ function PoolWeekWorkspace() {
     {autosave.error && <div className="schedule-error prominent"><AlertTriangle size={16} /><span>{autosave.error.message}</span><button onClick={autosave.retry}>Retry save</button></div>}
 
     <fieldset disabled={applyingAI || data.entry.read_only || Boolean(data.configuration_errors.length)} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-    {!data.games.length ? <section className="panel pool-empty"><h2>No games in Week {week}</h2><p>Check source coverage above or choose another week.</p></section> : data.pool.pool_type === "confidence" ? <ConfidenceWorkspace data={data} draft={draft} edit={edit} suggestionsEnabled={sourcesReady && !workspace.isFetching} /> : <SurvivorWorkspace data={data} draft={draft} edit={edit} />}
+    {!data.games.length ? <section className="panel pool-empty"><h2>No games in Week {week}</h2><p>Check source coverage above or choose another week.</p></section> : data.pool.pool_type === "confidence" ? <ConfidenceWorkspace data={data} draft={draft} edit={edit} suggestionsEnabled={sourcesReady && !workspace.isFetching} suggestCard={() => assistant.current?.suggestCard()} suggesting={applyingAI} /> : <SurvivorWorkspace data={data} draft={draft} edit={edit} />}
     </fieldset>
     <div className={`autosave-bar ${data.card.state}`}><span className="status-dot" /><strong>{status}</strong><span>{weeklyCardProgress(data.pool.pool_type, data.card.selection_count, data.card.required_count, data.card.weight_count)}</span></div>
     <PoolIntelligence data={data} />

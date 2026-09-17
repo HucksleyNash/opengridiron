@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -21,17 +21,21 @@ type Proposal = {
   version: number;
 };
 
-export function PoolAssistant({ data, busy, onApplying, onReadiness }: {
+export type PoolAssistantHandle = { suggestCard: () => void };
+
+export function PoolAssistant({ data, busy, onApplying, onReadiness, ref }: {
   data: PoolWeek;
   busy: boolean;
   onApplying: (value: boolean) => void;
   onReadiness: (value: boolean) => void;
+  ref?: Ref<PoolAssistantHandle>;
 }) {
   const client = useQueryClient();
   const [providerId, setProviderId] = useState<number>();
   const [saved, setSaved] = useState(false);
   const [refreshError, setRefreshError] = useState<Error | null>(null);
   const [forcing, setForcing] = useState(false);
+  const [working, setWorking] = useState(false);
   const context = `/pools/${data.pool.id}/weeks/${data.week.number}`;
   const entry = `entry_id=${data.entry.id}`;
   const refreshKey = ["pool-check-in", data.pool.id, data.entry.id, data.week.number];
@@ -45,7 +49,7 @@ export function PoolAssistant({ data, busy, onApplying, onReadiness }: {
     refetchOnWindowFocus: "always",
     refetchInterval: (query) => query.state.data?.status === "running" ? 2000 : 300_000,
     retry: false,
-    enabled: !forcing,
+    enabled: !forcing && !working,
   });
   const lastRefreshed = useRef(0);
   const refreshWorkspace = async () => {
@@ -57,12 +61,28 @@ export function PoolAssistant({ data, busy, onApplying, onReadiness }: {
     ]);
   };
   const analyze = useMutation({
-    mutationFn: () => post<Proposal>(`${context}/analysis?${entry}`, { provider_id: providerId }),
-    onMutate: () => setSaved(false),
-    onSuccess: (result) => client.setQueryData(refreshKey, result.freshness),
+    mutationFn: (_useCard: boolean) => post<Proposal>(`${context}/analysis?${entry}`, { provider_id: providerId }),
+    onMutate: () => {
+      setSaved(false);
+      setWorking(true);
+      onApplying(true);
+      apply.reset();
+    },
+    onSuccess: async (result, useCard) => {
+      client.setQueryData(refreshKey, result.freshness);
+      if (useCard && result.can_apply) {
+        // Apply revalidates the frozen run's locks, weights and evidence.
+        await apply.mutateAsync(result.run_id).catch(() => undefined);
+      }
+    },
+    onSettled: () => {
+      setWorking(false);
+      onApplying(false);
+      void refreshWorkspace();
+    },
   });
   const apply = useMutation({
-    mutationFn: () => post<{ card: WeeklyCard }>(`${context}/analysis/apply?${entry}`, { run_id: analyze.data!.run_id }),
+    mutationFn: (runId: number) => post<{ card: WeeklyCard }>(`${context}/analysis/apply?${entry}`, { run_id: runId }),
     onMutate: () => onApplying(true),
     onSuccess: async ({ card }) => {
       client.setQueryData<PoolWeek>(poolKeys.week(data.pool.id, data.entry.id, data.pool.season, data.week.number), (current) => current ? { ...current, card } : current);
@@ -76,11 +96,11 @@ export function PoolAssistant({ data, busy, onApplying, onReadiness }: {
   }, [checkIn.dataUpdatedAt]);
   useEffect(() => {
     // A source update must not replace a local card while its save is pending.
-    if (!busy && !apply.isPending && checkIn.data?.status !== "running" && checkIn.dataUpdatedAt > lastRefreshed.current) {
+    if (!busy && !working && !apply.isPending && checkIn.data?.status !== "running" && checkIn.dataUpdatedAt > lastRefreshed.current) {
       lastRefreshed.current = checkIn.dataUpdatedAt;
       void refreshWorkspace();
     }
-  }, [checkIn.dataUpdatedAt, busy, apply.isPending]);
+  }, [checkIn.dataUpdatedAt, busy, working, apply.isPending]);
 
   const refresh = async () => {
     setForcing(true);
@@ -97,12 +117,17 @@ export function PoolAssistant({ data, busy, onApplying, onReadiness }: {
   };
   const refreshing = forcing || checkIn.isFetching || checkIn.data?.status === "running";
   const sourceError = refreshError || checkIn.error;
-  useEffect(() => {
-    onReadiness(!refreshing && !sourceError && checkIn.data?.status === "ready");
-    return () => onReadiness(false);
-  }, [refreshing, sourceError, checkIn.data?.status, onReadiness]);
-  const changed = analyze.data && analyze.data.version !== data.card.version;
   const unavailable = data.entry.read_only || Boolean(data.configuration_errors.length) || !data.games.some((game) => !game.locked);
+  const canSuggest = Boolean(enabled.length) && !unavailable && !busy && !refreshing && !analyze.isPending && !apply.isPending;
+  useEffect(() => {
+    // Failed cached evidence must not prevent a new full refresh.
+    onReadiness(canSuggest);
+    return () => onReadiness(false);
+  }, [canSuggest, onReadiness]);
+  useImperativeHandle(ref, () => ({
+    suggestCard: () => { if (canSuggest) analyze.mutate(true); },
+  }));
+  const changed = analyze.data && analyze.data.version !== data.card.version;
   const proposal = analyze.data;
 
   return <section className="panel decision-analyst" aria-label="Pool data and AI analysis">
@@ -118,7 +143,7 @@ export function PoolAssistant({ data, busy, onApplying, onReadiness }: {
       <p>Source checks retrieve the latest published data. nflverse odds are not a live market feed; article dates and missing probability coverage still matter.</p>
     </details>
     <label className="field">Analyst<select value={providerId || ""} disabled={analyze.isPending || apply.isPending} onChange={(event) => setProviderId(Number(event.target.value) || undefined)}><option value="">Recommendation default</option>{enabled.map((provider) => <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>)}</select></label>
-    <button className="primary" disabled={!enabled.length || busy || refreshing || analyze.isPending || apply.isPending} onClick={() => { apply.reset(); analyze.mutate(); }}><Sparkles size={15} />{analyze.isPending ? "Analyzing current evidence…" : "Analyze picks"}</button>
+    <button className="primary" disabled={!canSuggest} onClick={() => analyze.mutate(false)}><Sparkles size={15} />{analyze.isPending ? "Refreshing sources and analyzing…" : "Analyze picks"}</button>
     <p>Review a proposed card, then set and save picks for this entry. Locked picks stay fixed. Saved picks are recorded in Open Gridiron.</p>
     {!enabled.length && <p><Link to="/settings">Configure an AI provider</Link> to enable pool analysis.</p>}
     {providers.error && <p role="alert">{providers.error.message}</p>}
@@ -137,7 +162,7 @@ export function PoolAssistant({ data, busy, onApplying, onReadiness }: {
       })}</tbody></table></div>}
       {saved ? <p role="status">AI picks saved for this entry.</p> : <>
         {changed && <p>The saved card changed. Analyze again before setting picks.</p>}
-        <button className="primary" disabled={!proposal.can_apply || unavailable || Boolean(changed) || busy || refreshing || analyze.isPending || apply.isPending || checkIn.data?.status !== "ready" || Boolean(sourceError)} onClick={() => apply.mutate()}>{apply.isPending ? "Checking and saving…" : "Set AI picks"}</button>
+        <button className="primary" disabled={!proposal.can_apply || unavailable || Boolean(changed) || busy || refreshing || analyze.isPending || apply.isPending || checkIn.data?.status !== "ready" || Boolean(sourceError)} onClick={() => apply.mutate(proposal.run_id)}>{apply.isPending ? "Checking and saving…" : "Set AI picks"}</button>
       </>}
       <p><Link to={`/analysis?parent_run_id=${proposal.run_id}`}>Open in Analyst desk</Link></p>
       <AnalysisFollowUp key={proposal.run_id} source={{ parent_run_id: proposal.run_id }} providerId={providerId} disabled={analyze.isPending} />

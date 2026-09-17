@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import feedparser
 import httpx
@@ -77,37 +78,64 @@ def _parse_html_items(
 ) -> int:
     soup = BeautifulSoup(content, "html.parser")
     created = 0
-    candidates: list[tuple[Tag, Tag]] = []
+    candidates: list[tuple[str, Tag, Tag | None]] = []
     for article in soup.select("article")[:50]:
         heading = article.select_one("h1,h2,h3,h4")
         link = article.select_one("a[href]")
         if heading and link:
-            candidates.append((heading, link))
+            candidates.append((heading.get_text(" ", strip=True), link, heading))
     if not candidates:
         for heading in soup.select("h2,h3,h4"):
             link = heading.find_parent("a", href=True)
             if link:
-                candidates.append((heading, link))
+                candidates.append((heading.get_text(" ", strip=True), link, heading))
+            if len(candidates) >= 50:
+                break
+    if not candidates and urlparse(source.url).hostname in {"nfl.com", "www.nfl.com"}:
+        # NFL's headline stack uses spans/paragraphs and repeats mobile text.
+        # Its link metadata supplies one headline and the description carries context.
+        seen = set()
+        for link in soup.select("a[data-analytics][href]"):
+            url = urljoin(source.url, str(link.get("href")))
+            parsed = urlparse(url)
+            if (
+                parsed.hostname not in {"nfl.com", "www.nfl.com"}
+                or not parsed.path.startswith("/news/")
+                or not parsed.path.removeprefix("/news/")
+                or url in seen
+            ):
+                continue
+            try:
+                metadata = json.loads(str(link.get("data-analytics")))
+            except (ValueError, TypeError):
+                continue
+            title = metadata.get("linkName") if isinstance(metadata, dict) else None
+            if isinstance(title, str) and title.strip():
+                candidates.append((title.strip(), link, None))
+                seen.add(url)
             if len(candidates) >= 50:
                 break
     if require_items and not candidates:
         raise ValueError("Source returned HTML without recognizable news items")
-    for heading, link in candidates:
+    for title, link, heading in candidates:
         url = urljoin(source.url, str(link.get("href")))
-        container: Tag | None = heading.parent if isinstance(heading.parent, Tag) else None
+        container = heading.parent if heading is not None else None
+        container = container if isinstance(container, Tag) else None
         for _ in range(4):
             if not container or container.select_one("p,time[datetime]"):
                 break
             container = container.parent if isinstance(container.parent, Tag) else None
         excerpt_node = container.select_one("p") if container else None
         time_node = container.select_one("time[datetime]") if container else None
-        excerpt = excerpt_node.get_text(" ", strip=True) if excerpt_node else ""
+        excerpt = str(link.get("description") or "") or (
+            excerpt_node.get_text(" ", strip=True) if excerpt_node else ""
+        )
         published = _published(str(time_node.get("datetime"))) if time_node else None
         if _store_item(
             db,
             source,
             url,
-            heading.get_text(" ", strip=True),
+            title,
             excerpt,
             published,
         ):

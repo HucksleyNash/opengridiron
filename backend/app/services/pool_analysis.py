@@ -145,7 +145,15 @@ async def refresh_pool_sources(db: Session, season: int, force: bool = False) ->
                 }
             )
         db.expire_all()
-        sources.append(await refresh_source(SourceRequest("sleeper", season)))
+        player_status = await refresh_source(SourceRequest("sleeper", season), force=force)
+        sources.append(
+            {
+                **player_status,
+                "status": "refreshed" if player_status["status"] == "available" else "unavailable",
+                "checked_at": player_status.get("received_at"),
+                "detail": player_status.get("last_error") or player_status.get("detail"),
+            }
+        )
         manual = db.query(Game).filter(Game.season == season, Game.source != "nflverse").all()
         if manual:
             sources.append(
@@ -345,7 +353,7 @@ async def analyze_pool(
     with job_lock(f"pool-analysis-{pool_id}-{entry_id}") as acquired:
         if not acquired:
             reject("analysis_running", "An analysis is already running for this entry.")
-        freshness = await refresh_pool_sources(db, workspace["pool"]["season"])
+        freshness = await refresh_pool_sources(db, workspace["pool"]["season"], force=True)
         if freshness["status"] == "running":
             reject(
                 "refresh_running", "Sources are refreshing. Run analysis after the check finishes."

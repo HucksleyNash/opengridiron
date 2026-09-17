@@ -61,6 +61,7 @@ class ParsedGame:
     home_score: int | None
     away_score: int | None
     model_json: str
+    fallback_game_key: str | None = None
 
     @property
     def identity(self) -> tuple[str, str] | None:
@@ -176,6 +177,7 @@ def _parsed_schedule(content: str, season: int) -> list[ParsedGame]:
             home_score=int(home_score) if home_score is not None and home_score >= 0 else None,
             away_score=int(away_score) if away_score is not None and away_score >= 0 else None,
             model_json=json.dumps({**benchmark, "home_win_probability": model_probability}),
+            fallback_game_key=(row.get("game_id") or "").strip() or None,
         )
         if item.matchup in matchups:
             raise ScheduleSyncError(
@@ -220,7 +222,15 @@ def parse_schedule(db: Session, content: str, season: int) -> dict[str, int]:
                 message="The imported schedule conflicts with a cached game identity.",
             )
         if game is None and occupant is not None:
-            if item.identity and occupant.source_game_key:
+            # nflverse publishes game_id before GSIS IDs are assigned. Only promote
+            # when the incoming row explicitly carries the exact stored fallback ID.
+            promotes_fallback = (
+                occupant.source == "nflverse"
+                and occupant.source_game_key_kind == "game_id"
+                and item.source_game_key_kind == "gsis"
+                and occupant.source_game_key == item.fallback_game_key
+            )
+            if item.identity and occupant.source_game_key and not promotes_fallback:
                 raise ScheduleSyncError(
                     status_code=409,
                     code="schedule_identity_conflict",
