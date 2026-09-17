@@ -10,8 +10,15 @@ from ..models import DataSnapshot
 def yahoo_roster_source(db, league, now: datetime) -> dict | None:
     if not (league.source or "").startswith("yahoo"):
         return None
+    # Freshness needs metadata only. Sorting archived response bodies can exceed
+    # SQLite's temporary storage limit even when the data volume has free space.
     snapshots = (
-        db.query(DataSnapshot)
+        db.query(
+            DataSnapshot.id,
+            DataSnapshot.source,
+            DataSnapshot.retrieved_at,
+            DataSnapshot.status,
+        )
         .filter(
             DataSnapshot.source.in_(["yahoo", "yahoo_scrape"]),
             DataSnapshot.source_id.startswith(league.yahoo_key or "__missing__"),
