@@ -39,7 +39,6 @@ async function mockApp(page: Page, options: { complete?: boolean; fail?: boolean
       return json({ player, synopsis: `${player.name} player overview.`, injury_reports: [], articles: [{ title: "Latest attributed report", url: "https://example.com/player-report", excerpt: "A sourced update.", source: "Test Sports", category: "news", published_at: date, retrieved_at: date }], sources: [{ name: "NFL injury report", url: "https://www.nfl.com/injuries/", status: "ok", checked_at: date, fetched_at: date }, { name: "Google News", url: "https://news.google.com", status: "ok", checked_at: date, fetched_at: date }], news_window_days: 30 });
     }
     if (path.endsWith("/dashboard")) return json({ leagues: [league], pools: [], alerts: [{ id: 1, title: "Josh Allen prepares for opener", message: "Patrick Mahomes also practiced.", severity: "medium", url: "https://example.com/story", read: false, created_at: date }], snapshots: [], analysis_runs: [] });
-    if (path.endsWith("/waivers")) return json([{ player_id: stroud.id, rank: 1, subject: "C.J. Stroud (QB, HOU)", expected_value: 20, confidence: 0.8, data_as_of: date }]);
     if (path.endsWith("/leagues")) return json([league]);
     if (path.endsWith("/leagues/1")) return json(league);
     if (path.endsWith("/draft-sessions")) return json([session]);
@@ -53,7 +52,7 @@ async function mockApp(page: Page, options: { complete?: boolean; fail?: boolean
     if (path.endsWith("/analyses/30")) return json({ ...summary, report, stale_reasons: [] });
     if (path.endsWith("/roster")) return json([allen, mahomes]);
     if (path.endsWith("/weekly-lineup")) return json({ season: 2026, week: 1, assignments: [], forecasts: [], unfilled_slots: [], mode: "balanced", current_total: 20, projected_total: 24, projected_gain: 4 });
-    if (path.endsWith("/waivers/page")) return json({ items: [], total: 0, available: 0, next_offset: null, facets: { teams: [], positions: [], statuses: [] } });
+    if (path.endsWith("/waivers/page")) return json({ items: [{ player_id: stroud.id, player: stroud, rank: 1, expected_value: 23, ranking_basis: "source_points" }], total: 1, available: 1, next_offset: null, facets: { teams: ["HOU"], positions: ["QB"], statuses: ["Active"] } });
     if (path.endsWith("/analysis/runs")) return json([{ id: 40, task: "chat", question: "Compare Josh Allen with Patrick Mahomes", provider: "Test", model: "Test", status: "completed", output, created_at: date }]);
     if (path.endsWith("/news/items")) return json([{ id: 1, title: "Josh Allen prepares for opener", excerpt: "C.J. Stroud also practiced.", category: "news", severity: "medium", canonical_url: "https://example.com/story", published_at: date }]);
     return json([]);
@@ -120,10 +119,11 @@ test("forecast lineup, bench, waivers, comparison and analyst mentions share the
   await page.screenshot({ path: `/private/tmp/player-links-forecast-${test.info().project.name}.png`, fullPage: true });
 });
 
-test("Command Center, news and saved analyst text link players without nesting interactive controls", async ({ page }) => {
+test("league market, Command Center, news and saved analyst text link players without nesting interactive controls", async ({ page }) => {
   await mockApp(page);
+  await page.goto("/leagues/1");
+  await checkPlayer(page, page.getByRole("region", { name: "Player market", exact: true }).getByRole("button", { name: "View C.J. Stroud synopsis" }), stroud.name);
   await page.goto("/");
-  await checkPlayer(page, page.locator(".command-market").getByRole("button", { name: "View C.J. Stroud synopsis" }), stroud.name);
   await checkPlayer(page, page.locator(".command-alert").getByRole("button", { name: "View Josh Allen synopsis" }), allen.name);
   await expect(page.getByRole("link", { name: "Open article: Josh Allen prepares for opener" })).toHaveAttribute("href", "https://example.com/story");
   await page.goto("/news");

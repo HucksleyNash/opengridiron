@@ -59,6 +59,40 @@ function PlayerIdentity({ player, children }: { player: Player; children?: React
   </span>;
 }
 
+function PlayerMarket({ league, teamName, active }: { league: League; teamName: string; active: boolean }) {
+  const [searchParams] = useSearchParams();
+  const waiverParams = new URLSearchParams(searchParams);
+  waiverParams.set("tab", "waivers");
+  const market = useQuery({
+    queryKey: ["waivers", league.id, teamName],
+    queryFn: ({ signal }) => api<WaiverPage>(`/leagues/${league.id}/waivers/page?${new URLSearchParams({ limit: "4", team_name: teamName })}`, { signal }),
+    enabled: active, staleTime: 30_000, refetchInterval: active ? 5 * 60_000 : false,
+  });
+  const rows = market.data?.items || [];
+  const gainMode = rows.length > 0 && rows.every((item) => item.ranking_basis === "weekly_lineup_gain");
+  const source = sharedProjectionContext(rows.map((item) => item.player));
+  const metric = gainMode ? "Lineup gain" : source.period?.includes("Full season") ? "Season pts" : "Source pts";
+
+  return <section className="league-section league-player-market" aria-labelledby="player-market-heading">
+    <div className="league-section-heading"><div><h2 id="player-market-heading">Player market</h2><p className="league-caption">Top available value · {league.name}</p></div>
+      <Link to={{ search: `?${waiverParams}` }}>View all available players</Link>
+    </div>
+    {market.isLoading ? <Loading>Ranking available players…</Loading> : market.error ? <Failure title="Could not load this league’s player market" error={market.error} retry={() => void market.refetch()} /> : rows.length ? <>
+      <p className="league-help">{gainMode ? `Ranked by modeled weekly starting-lineup gain for ${teamName}, using matching stored projections.` : "Ranked by stored source projections. Weekly lineup impact is unavailable; compare projection periods before adding a player."}</p>
+      <p className="league-caption">{source.source || "Multiple sources"} · {source.period || "Mixed projection periods"}</p>
+      <table className="league-market-table">
+        <caption className="sr-only">Top available players in {league.name}</caption>
+        <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" className="numeric">{metric}</th></tr></thead>
+        <tbody>{rows.map((item) => <tr key={item.player_id}>
+          <td className="league-rank">{String(item.rank).padStart(2, "0")}</td>
+          <td><PlayerIdentity player={item.player}><span className="league-availability">{["W", "WAIVERS"].includes(item.player.ownership.toUpperCase()) ? "Waivers" : "Free agent"}{!source.period && ` · ${projectionPeriod(item.player.projection)}`}</span></PlayerIdentity></td>
+          <td className="numeric">{gainMode ? signedPoints(item.expected_value) : points(item.expected_value)}</td>
+        </tr>)}</tbody>
+      </table>
+    </> : <p className="league-help">No available players in {league.name}. Sync or import players in League tools to update the market.</p>}
+  </section>;
+}
+
 function WaiverWatchlist({ leagueId, rosterSlots, teamName, active }: { leagueId: number; rosterSlots: string[]; teamName: string; active: boolean }) {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
@@ -262,6 +296,7 @@ function LeagueWorkspace({ id, draftSuiteEnabled }: { id: number; draftSuiteEnab
       <RosterTable roster={roster} slots={league.roster_slots} weekly={lineupError ? undefined : weekly} gameForecasts={weekly?.forecasts} mode={mode} loading={lineupQuery.isLoading} /></>}
       {rosterView === "source" && <section className="league-section" id="player-projections" aria-labelledby="player-projections-heading"><h2 id="player-projections-heading">Roster source projections</h2>{roster.length ? <SourceProjectionTable players={roster} gameForecasts={weekly?.forecasts} scheduleLoading={lineupQuery.isLoading} /> : <p>No roster projections. Open League tools to sync or import players.</p>}</section>}
     </>}
+    <PlayerMarket league={league} teamName={selectedTeam} active={tab === "roster"} />
     </div>
     <div className="league-view-panel" role="tabpanel" id="league-view-panel-waivers" aria-labelledby="league-view-tab-waivers" hidden={tab !== "waivers"} tabIndex={0}>
       <WaiverWatchlist leagueId={id} rosterSlots={league.roster_slots} teamName={selectedTeam} active={tab === "waivers"} />

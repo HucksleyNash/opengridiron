@@ -18,19 +18,21 @@ async function mockCommandCenter(page: Page) {
       analysis_runs: [],
     });
     if (path.endsWith("/games")) return json([game]);
-    if (path.endsWith("/leagues/1/waivers")) return json([{ rank: 1, subject: "Josh Allen (QB, BUF)", expected_value: 196.1, confidence: 0.86, data_as_of: "2099-09-01T12:00:00Z" }]);
     return json({ detail: `Unhandled mock route: ${path}` });
   });
 }
 
 test("command center matches the approved week-and-intelligence composition", async ({ page }) => {
   await mockCommandCenter(page);
+  const marketRequests: string[] = [];
+  page.on("request", (request) => { if (request.url().includes("/waivers")) marketRequests.push(request.url()); });
   await page.goto("/");
 
   await expect(page.locator(".dashboard-tape")).toContainText("NFL week 01");
   await expect(page.locator(".dashboard-tape")).toContainText("NE @ SEA");
   await expect(page.locator(".command-center-metrics")).toContainText("Next kickoff");
-  await expect(page.getByRole("heading", { name: "Top available value" })).toBeVisible();
+  await expect(page.getByText("Player market", { exact: true })).toHaveCount(0);
+  expect(marketRequests).toEqual([]);
   await expect(page.getByRole("heading", { name: "Source status" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Week 1 board" })).toBeVisible();
 

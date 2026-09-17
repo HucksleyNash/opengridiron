@@ -20,7 +20,7 @@ import {
   Users,
 } from "lucide-react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
-import { PlayerDetailsButton, PlayerDetailsProvider, PlayerMentions } from "./features/leagues/PlayerDetails";
+import { PlayerDetailsProvider, PlayerMentions } from "./features/leagues/PlayerDetails";
 import { api, ApiError, post, remove } from "./api";
 import { ProviderEditor, ProviderTasks } from "./features/analysis/ProviderEditor";
 import { providerModelControl, providerModelPlaceholder, supportsProviderModelDiscovery } from "./provider-model-state";
@@ -39,7 +39,6 @@ type Alert = { id: number; title: string; message: string; severity: string; url
 type DashboardSnapshot = { id: number; source: string; retrieved_at: string; status: string };
 type DashboardNewsStatus = { id: number; name: string; enabled: boolean; official: boolean; last_fetched_at?: string };
 type Dashboard = { leagues: League[]; active_draft?: { id: number; league_id: number; kind: "live" | "mock"; status: string } | null; pools: Pool[]; alerts: Alert[]; snapshots: DashboardSnapshot[]; news_sources?: DashboardNewsStatus[]; analysis_runs: { id: number; task: string; model: string; status: string; created_at: string }[] };
-type MarketRecommendation = { player_id?: number; rank: number; subject: string; expected_value: number; confidence: number; data_as_of: string };
 type DashboardNewsSource = { id: number; name: string; enabled: boolean };
 type DashboardRefreshOutcome = { status: "success" | "partial" | "error"; message: string; details: string[] };
 type CodexAuthStatus = { status: "idle" | "starting" | "pending" | "authenticated" | "error"; authenticated: boolean; verification_url?: string; user_code?: string; message: string; expires_in?: number };
@@ -84,11 +83,6 @@ function gameLeader(game: Game): string {
   const homeLeads = game.home_win_probability >= 0.5;
   const probability = homeLeads ? game.home_win_probability : 1 - game.home_win_probability;
   return `${homeLeads ? game.home_team : game.away_team} ${Math.round(probability * 100)}%`;
-}
-
-function marketSubject(subject: string): { name: string; position: string; team: string } {
-  const parsed = subject.match(/^(.*) \(([^,]+), ([^)]+)\)$/);
-  return parsed ? { name: parsed[1], position: parsed[2], team: parsed[3] } : { name: subject, position: "—", team: "—" };
 }
 
 function readableList(items: string[]): string {
@@ -312,17 +306,13 @@ function DashboardPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useDashboardData();
   const schedule = useDashboardGames(data);
-  const primaryLeague = data?.leagues[0];
-  const draftRoomPath = data?.active_draft
-    ? `/draft/${data.active_draft.league_id}?session=${data.active_draft.id}`
-    : primaryLeague ? `/draft/${primaryLeague.id}` : "/draft";
-  const market = useQuery({ queryKey: ["dashboard-market", primaryLeague?.id], queryFn: () => api<MarketRecommendation[]>(`/leagues/${primaryLeague!.id}/waivers`), enabled: Boolean(primaryLeague), refetchInterval: 5 * 60_000 });
   const refreshSources = useMutation({
     mutationFn: refreshCommandCenterSources,
     onSettled: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
       queryClient.invalidateQueries({ queryKey: ["dashboard-games"] }),
-      queryClient.invalidateQueries({ queryKey: ["dashboard-market"] }),
+      queryClient.invalidateQueries({ queryKey: ["waivers"] }),
+      queryClient.invalidateQueries({ queryKey: ["waivers-page"] }),
       queryClient.invalidateQueries({ queryKey: ["leagues"] }),
       queryClient.invalidateQueries({ queryKey: ["league"] }),
       queryClient.invalidateQueries({ queryKey: ["players"] }),
@@ -355,7 +345,6 @@ function DashboardPage() {
   });
   const sourcesOnline = sourceRows.filter((source) => source.status !== "failed" && source.status !== "error").length;
   const nextKickoffHours = weekState.nextGame ? Math.max(0, Math.ceil((apiTimestamp(weekState.nextGame.kickoff).getTime() - Date.now()) / 3_600_000)) : undefined;
-  const marketRows = market.data?.slice(0, 4) || [];
   const currentDay = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "America/Chicago" }).format(new Date());
   const currentTime = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/Chicago" }).format(new Date());
 
@@ -384,11 +373,6 @@ function DashboardPage() {
           {dashboardAlerts.length ? dashboardAlerts.map((alert) => <PriorityWireAlert key={alert.id} alert={alert} />) : <Empty title="No urgent alerts" body="Sources will appear here after the first news sync." />}
         </section>
 
-        <section className="command-section command-market">
-          <header className="command-section-head"><div><span className="eyebrow">Player market</span><h2>Top available value</h2></div><Link to={draftRoomPath}>Open draft room</Link></header>
-          <div className="command-market-head"><span>RK</span><span>Player</span><span>POS</span><span>Value</span><span>Confidence</span></div>
-          {marketRows.length ? marketRows.map((item) => { const player = marketSubject(item.subject); return <div className="command-market-row" key={`${item.rank}-${item.subject}`}><span>{String(item.rank).padStart(2, "0")}</span><span><PlayerDetailsButton player={{ id: item.player_id, name: player.name, league_id: primaryLeague?.id, position: player.position === "—" ? undefined : player.position, pro_team: player.team === "—" ? undefined : player.team }} /><small>{player.team}</small></span><span>{player.position}</span><span>{item.expected_value.toFixed(1)}</span><span className="delta">{Math.round(item.confidence * 100)}%</span></div>; }) : <div className="command-market-empty">{market.isLoading ? "Ranking available players…" : "No available-player market yet."}</div>}
-        </section>
       </div>
 
       <aside className="command-center-intel">

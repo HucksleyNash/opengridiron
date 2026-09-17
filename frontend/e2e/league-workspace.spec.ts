@@ -12,7 +12,8 @@ test("one roster, consistent objectives, source columns, and deferred workspace 
   await expect(table.locator("tbody tr")).toHaveCount(15);
   await expect(page.getByText("1 proposed swap", { exact: true })).toBeVisible();
   await expect(table.getByRole("button", { name: "View Dak Prescott synopsis" })).toHaveCount(1);
-  expect(requests.some((url) => url.includes("waivers/page"))).toBe(false);
+  await expect(page.getByRole("region", { name: "Player market", exact: true })).toContainText("Geno Smith");
+  expect(requests.filter((url) => url.includes("waivers/page")).every((url) => new URL(url, "http://localhost").searchParams.get("limit") === "4")).toBe(true);
   await page.getByRole("button", { name: "Floor", exact: true }).click();
   await expect(table.getByRole("row").filter({ hasText: "Dak Prescott" })).toContainText("7.2");
   await expect(table).toContainText("Floor pts");

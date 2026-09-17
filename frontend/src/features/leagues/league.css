@@ -97,6 +97,9 @@
 .league-waiver-table :is(th, td):nth-child(2) { width: 35%; }
 .league-waiver-table :is(th, td):nth-child(3) { width: 108px; }
 .league-page .league-rank { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+.league-market-table :is(th, td):first-child { width: 48px; padding-inline-start: 0; }
+.league-market-table :is(th, td):last-child { width: 96px; padding-inline-end: 0; }
+.league-market-table .player-details-trigger { white-space: normal; text-align: left; overflow-wrap: anywhere; }
 .league-mobile-label { display: none; }
 .league-player-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; gap: 16px; }
 .league-import-row { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; }

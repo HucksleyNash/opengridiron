@@ -87,3 +87,4 @@
 | 2026-09-02 | Use graphite neutrals, signal blue, Barlow Condensed, and IBM Plex | This combination creates broadcast authority, data clarity, and a distinct non-consumer posture. |
 | 2026-09-02 | Make structural rules and rows the default grouping device | This removes explicit cards while retaining dense, scannable hierarchy. |
 | 2026-09-02 | Use the full analyst-workstation composition for the Command Center | The approved view leads with an NFL-week ticker and five-metric tape, then pairs the priority wire and player market with a right-side source-status and weekly-game rail. |
+| 2026-09-16 | Move Player Market after the roster in each league’s Roster view | Show up to four available players for the viewed league and selected team, with a link to that league’s full Waivers view. |

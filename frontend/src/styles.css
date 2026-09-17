@@ -969,14 +969,6 @@ a.command-alert:focus-visible { position: relative; z-index: 1; outline: 2px sol
 .command-alert-tag { display: inline-flex; align-items: center; justify-self: end; gap: 6px; color: var(--orange-strong); font: 600 9px "IBM Plex Mono", monospace; letter-spacing: 0.08em; text-transform: uppercase; }
 .command-alert.high .command-alert-tag, .command-alert.critical .command-alert-tag, .command-alert.urgent .command-alert-tag { color: var(--red); }
 .command-alert.medium .command-alert-tag, .command-alert.warning .command-alert-tag { color: var(--yellow); }
-.command-market-head, .command-market-row { display: grid; grid-template-columns: 42px minmax(130px, 1fr) 58px 74px 82px; align-items: center; gap: 8px; }
-.command-market-head { min-height: 31px; padding: 0 18px; border-bottom: 1px solid var(--line); color: var(--faint); font: 500 9px "IBM Plex Mono", monospace; text-transform: uppercase; }
-.command-market-row { min-height: 52px; padding: 0 18px; border-bottom: 1px solid var(--line-soft); font: 500 12px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
-.command-market-row > span:first-child { color: var(--faint); }
-.command-market-row > span:nth-child(2) { display: grid; min-width: 0; font-family: "IBM Plex Sans", sans-serif; }
-.command-market-row strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.command-market-row small { margin-top: 2px; color: var(--muted); font: 500 9px "IBM Plex Mono", monospace; }
-.command-market-row .delta { color: var(--orange-strong); }
 .command-market-empty { min-height: 54px; padding: 18px; color: var(--muted); font: 500 11px "IBM Plex Mono", monospace; }
 .command-side-block + .command-side-block { border-top: 1px solid var(--line); }
 .command-source-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 56px; padding: 0 18px; border-bottom: 1px solid var(--line-soft); }
@@ -1015,8 +1007,6 @@ a.command-alert:focus-visible { position: relative; z-index: 1; outline: 2px sol
   .command-section-head { min-height: 64px; padding-inline: 16px; }
   .command-alert { grid-template-columns: 62px minmax(0, 1fr); gap: 12px; padding-inline: 16px; }
   .command-alert-tag { grid-column: 2; justify-self: start; }
-  .command-market-head, .command-market-row { grid-template-columns: 30px minmax(105px, 1fr) 40px 54px 66px; padding-inline: 12px; }
-  .command-market-head { font-size: 9px; }
   .command-source-row, .command-game { padding-inline: 16px; }
 }
 
