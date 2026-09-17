@@ -12,44 +12,43 @@ def yahoo_roster_source(db, league, now: datetime) -> dict | None:
         return None
     # Freshness needs metadata only. Sorting archived response bodies can exceed
     # SQLite's temporary storage limit even when the data volume has free space.
-    snapshots = (
-        db.query(
-            DataSnapshot.id,
-            DataSnapshot.source,
-            DataSnapshot.retrieved_at,
-            DataSnapshot.status,
-        )
-        .filter(
-            DataSnapshot.source.in_(["yahoo", "yahoo_scrape"]),
-            DataSnapshot.source_id.startswith(league.yahoo_key or "__missing__"),
-        )
-        .order_by(DataSnapshot.id.desc())
-        .limit(200)
-        .all()
+    snapshots = db.query(
+        DataSnapshot.id,
+        DataSnapshot.source,
+        DataSnapshot.retrieved_at,
+        DataSnapshot.status,
+    ).filter(
+        DataSnapshot.source.in_(["yahoo", "yahoo_scrape"]),
+        DataSnapshot.source_id.startswith(league.yahoo_key or "__missing__"),
     )
-    if not snapshots:
+    latest = snapshots.order_by(DataSnapshot.id.desc()).first()
+    if latest is None:
         return {
             "name": "Yahoo league",
             "status": "unavailable",
             "detail": "No successful roster snapshot is available.",
         }
-    latest = snapshots[0]
     received = (
         latest.retrieved_at.replace(tzinfo=UTC)
         if latest.retrieved_at.tzinfo is None
         else latest.retrieved_at
     )
-    # Include every resource from the latest import, so a failed roster page cannot
-    # be hidden by a successful later page in the same import.
-    recent = [
-        s
-        for s in snapshots
-        if abs((s.retrieved_at.replace(tzinfo=UTC) - received).total_seconds()) < 1800
-    ]
-    if latest.source == "yahoo_scrape":
-        recent = [latest]
     status = "stale" if now - received > timedelta(hours=6) else "available"
-    if any(s.status not in {"fresh", "available", "refreshed"} for s in recent):
+    successful = {"fresh", "available", "refreshed"}
+    # A scrape stores the entire import in one record. OAuth uses many pages:
+    # check all their statuses in SQL without loading history or cutting off a
+    # failed page after an arbitrary number of successful pages.
+    incomplete = latest.status not in successful
+    if latest.source != "yahoo_scrape":
+        incomplete = db.query(
+            snapshots.filter(
+                DataSnapshot.id <= latest.id,
+                DataSnapshot.retrieved_at > received - timedelta(minutes=30),
+                DataSnapshot.retrieved_at < received + timedelta(minutes=30),
+                DataSnapshot.status.not_in(successful),
+            ).exists()
+        ).scalar()
+    if incomplete:
         status = "partial"
     return {
         "name": "Yahoo league",

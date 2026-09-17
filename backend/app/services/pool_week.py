@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import update
+from sqlalchemy import func, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, selectinload
 
@@ -454,21 +454,18 @@ def evaluate_weekly_card(
 def _latest_snapshots(db: Session, seasons: set[int]) -> dict[int, DataSnapshot]:
     if not seasons:
         return {}
-    rows = (
-        db.query(DataSnapshot)
+    # Reduce history to one ID per season before materializing any snapshots.
+    latest_ids = (
+        db.query(func.max(DataSnapshot.id))
         .filter(
             DataSnapshot.source == "nflverse.schedule",
             DataSnapshot.source_id.in_([str(season) for season in seasons]),
             DataSnapshot.status != "error",
         )
-        .order_by(DataSnapshot.id.desc())
-        .all()
+        .group_by(DataSnapshot.source_id)
     )
-    output: dict[int, DataSnapshot] = {}
-    for row in rows:
-        if row.source_id and int(row.source_id) not in output:
-            output[int(row.source_id)] = row
-    return output
+    rows = db.query(DataSnapshot).filter(DataSnapshot.id.in_(latest_ids)).all()
+    return {int(row.source_id): row for row in rows}
 
 
 def pool_overview(

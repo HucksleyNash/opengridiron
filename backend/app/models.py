@@ -53,7 +53,9 @@ class DataSnapshot(Base):
     effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     freshness_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="fresh")
-    payload_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # History lists and freshness checks must not load or sort archived bodies.
+    # Readers that need a body fetch that one record by primary key on access.
+    payload_json: Mapped[str | None] = mapped_column(Text, nullable=True, deferred=True)
 
 
 class League(Base):

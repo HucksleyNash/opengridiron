@@ -160,6 +160,7 @@ def latest_scrape_snapshot(db: Session, league: League) -> DataSnapshot | None:
             DataSnapshot.status == "fresh",
         )
         .order_by(DataSnapshot.retrieved_at.desc(), DataSnapshot.id.desc())
+        .limit(1)
     )
 
 
