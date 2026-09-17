@@ -101,6 +101,21 @@ def test_news_defaults_are_idempotent_and_preserve_owner_preferences(database):
         assert db.query(NewsSource).filter_by(name="CBS Sports NFL").one().official is False
 
 
+def test_pool_evidence_includes_every_injury_status_for_the_weeks_teams(database):
+    season = sources.nfl_season_for_date(datetime.now(UTC))
+    row = sources.parse_sleeper(sleeper_payload())["rows"][0]
+    payload = {
+        "rows": [dict(row, name=f"Player {i}", team="BUF") for i in range(130)]
+        + [dict(row, name="Last team quarterback", team="WAS")]
+        + [dict(row, name="Bye week player", team="CHI")],
+    }
+    with database() as db:
+        seed(db, sources.SourceRequest("sleeper", season), payload)
+        evidence = sources.pool_evidence(db, season, {"BUF", "WAS"})
+        assert evidence["included"] == evidence["matching_rows"] == 131
+        assert evidence["rows"][-1]["name"] == "Last team quarterback"
+
+
 @pytest.mark.asyncio
 async def test_daily_cache_and_real_player_evidence(database, monkeypatch):
     requests = []

@@ -378,10 +378,10 @@ def pool_evidence(db: Session, season: int, teams: set[str]) -> dict:
     rows.sort(key=lambda r: (r["team"], r["position"], r["name"]))
     return {
         **source_summary(evidence),
-        "rows": rows[:120],
-        "included": min(len(rows), 120),
+        "rows": rows,
+        "included": len(rows),
         "matching_rows": len(rows),
         "coverage": (
-            "Up to 120 reported injury statuses for this week's teams. No probability adjustments."
+            "All reported injury statuses for this week's teams. No probability adjustments."
         ),
     }
