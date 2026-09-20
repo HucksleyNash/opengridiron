@@ -88,3 +88,4 @@
 | 2026-09-02 | Make structural rules and rows the default grouping device | This removes explicit cards while retaining dense, scannable hierarchy. |
 | 2026-09-02 | Use the full analyst-workstation composition for the Command Center | The approved view leads with an NFL-week ticker and five-metric tape, then pairs the priority wire and player market with a right-side source-status and weekly-game rail. |
 | 2026-09-16 | Move Player Market after the roster in each league’s Roster view | Show up to four available players for the viewed league and selected team, with a link to that league’s full Waivers view. |
+| 2026-09-20 | Lead the Command Center with owner reminders, injuries and relevant news; keep Game Pulse in a supporting rail | Prioritize the next decision and useful league/pool context, preserve the full weekly slate, distinguish pregame estimates from results, and use explicit source-status labels. |

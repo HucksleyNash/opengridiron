@@ -7,6 +7,7 @@ async function mockCommandCenter(page: Page, games: BoardGame[] = [defaultGame],
   const league = { id: 1, name: "North Star", season: 2099, source: "yahoo_scrape", scoring: {}, roster_slots: ["QB"], player_count: 120 };
   const pool = { id: 1, name: "Sunday Pool", pool_type: "survivor", season: 2099, entry_count: 3, rules: { direction: "winner", basis: "straight_up", picks_per_week: 1, max_team_uses: 1, allowed_teams: [], blocked_teams: [], tie_result: "push", lock_mode: "game_start", confidence_weights: [], future_value_weight: 0.1 } };
   let currentGames = games;
+  let scoreChecks = 0;
 
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -23,7 +24,8 @@ async function mockCommandCenter(page: Page, games: BoardGame[] = [defaultGame],
     if (path.endsWith("/games")) return json(currentGames);
     if (path.endsWith("/sync/nflverse/schedule")) return json({ status: "completed", updated: currentGames.length, created: 0 });
     if (path.endsWith("/sync/live-scores")) {
-      currentGames = refreshedGames || currentGames;
+      scoreChecks += 1;
+      if (scoreChecks > 1) currentGames = refreshedGames || currentGames;
       return json({ status: "completed", updated: currentGames.length, matched: currentGames.length });
     }
     if (path.endsWith("/integrations/yahoo/scraper/sync")) return json({ status: "completed" });
@@ -50,7 +52,7 @@ test("command center matches the approved week-and-intelligence composition", as
   const intel = await page.locator(".command-center-intel").boundingBox();
   expect(wire).not.toBeNull();
   expect(intel).not.toBeNull();
-  if (page.viewportSize()!.width >= 1100) {
+  if (page.viewportSize()!.width > 1100) {
     expect(intel!.x).toBeGreaterThan(wire!.x);
   } else {
     expect(intel!.y).toBeGreaterThanOrEqual(wire!.y + wire!.height);
@@ -77,19 +79,22 @@ test("week board shows the entire slate with available scores and honest result 
 
   const games = page.locator(".command-game");
   await expect(games).toHaveCount(16);
-  await expect(games.first()).toContainText("ARI");
-  await expect(games.first().getByLabel("ARI 0, ATL 24")).toBeVisible();
-  await expect(games.first()).toContainText("Final");
-  await expect(games.nth(1).getByLabel("BAL 17, BUF 23")).toBeVisible();
-  await expect(games.nth(2)).toContainText("Score pending");
-  await expect(games.nth(2).locator(".command-game-score")).toHaveCount(0);
-  await expect(games.nth(3).getByLabel("CIN 7, CLE 10")).toBeVisible();
-  await expect(games.nth(3)).toContainText("Latest score");
-  await expect(games.last()).toContainText("TEN");
-  await expect(games.last()).toContainText("WAS");
-  await expect(games.last().locator("time")).toBeVisible();
-  await expect(games.last().locator(".command-game-score")).toHaveCount(0);
-  await expect(page.getByText("Scores reflect the latest source update.", { exact: true })).toBeVisible();
+  const final = games.filter({ hasText: "ARI" });
+  await expect(final.getByLabel("ARI 0, ATL 24")).toBeVisible();
+  await expect(final).toContainText("Final");
+  await expect(final).not.toContainText("Pregame");
+  await expect(games.filter({ hasText: "BAL" }).getByLabel("BAL 17, BUF 23")).toBeVisible();
+  const pending = games.filter({ hasText: "CAR" });
+  await expect(pending).toContainText("Score pending");
+  await expect(pending.locator(".command-game-score")).toHaveCount(0);
+  const started = games.filter({ hasText: "CIN" });
+  await expect(started.getByLabel("CIN 7, CLE 10")).toBeVisible();
+  await expect(started).toContainText("Latest score");
+  const monday = games.filter({ hasText: "TEN" });
+  await expect(monday).toContainText("WAS");
+  await expect(monday.locator("time")).toBeVisible();
+  await expect(monday.locator(".command-game-score")).toHaveCount(0);
+  await expect(page.getByText("Scores refresh every 30 seconds while this tab is visible.", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
@@ -99,8 +104,8 @@ test("week board tolerates unpublished betting lines and missing results", async
   await page.goto("/");
   const game = page.locator(".command-game");
   await expect(game).toContainText("Score pending");
-  await expect(game).toContainText("Line —");
-  await expect(game).toContainText("O/U —");
+  await expect(game.locator("time")).toBeVisible();
+  await expect(game).not.toContainText("Pregame");
 });
 
 test("refresh sources pulls the latest Game Pulse scores", async ({ page }) => {

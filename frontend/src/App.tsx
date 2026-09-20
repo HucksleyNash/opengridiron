@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import { PlayerDetailsProvider, PlayerMentions } from "./features/leagues/PlayerDetails";
+import { CommandCenterContent } from "./features/command-center/CommandCenter";
 import { api, ApiError, post, remove } from "./api";
 import { ProviderEditor, ProviderTasks } from "./features/analysis/ProviderEditor";
 import { providerModelControl, providerModelPlaceholder, supportsProviderModelDiscovery } from "./provider-model-state";
@@ -36,7 +37,7 @@ const PoolWeekPage = lazy(() => import("./features/pools/PoolWeekPage").then((mo
 
 type Onboarding = { configured: boolean; auth_required: boolean; environment: string; timezone: string; capabilities: { draft_suite: boolean } };
 type Alert = { id: number; title: string; message: string; severity: string; url?: string; read: boolean; created_at: string };
-type DashboardSnapshot = { id: number; source: string; retrieved_at: string; status: string };
+type DashboardSnapshot = { id: number; source: string; source_id?: string; retrieved_at: string; status: string };
 type DashboardNewsStatus = { id: number; name: string; enabled: boolean; official: boolean; last_fetched_at?: string };
 type Dashboard = { leagues: League[]; active_draft?: { id: number; league_id: number; kind: "live" | "mock"; status: string } | null; pools: Pool[]; alerts: Alert[]; snapshots: DashboardSnapshot[]; news_sources?: DashboardNewsStatus[]; analysis_runs: { id: number; task: string; model: string; status: string; created_at: string }[] };
 type DashboardNewsSource = { id: number; name: string; enabled: boolean };
@@ -87,12 +88,6 @@ function dashboardWeek(games: Game[]): { week?: number; nextGame?: Game; games: 
   const anchor = lastStarted && footballWeekStart(apiTimestamp(lastStarted.kickoff)) === footballWeekStart(new Date(now)) ? lastStarted : nextGame || lastStarted;
   if (!anchor) return { games: [] };
   return { week: anchor.week, nextGame, games: sorted.filter((game) => game.week === anchor.week) };
-}
-
-function gameLeader(game: Game): string {
-  const homeLeads = game.home_win_probability >= 0.5;
-  const probability = homeLeads ? game.home_win_probability : 1 - game.home_win_probability;
-  return `${homeLeads ? game.home_team : game.away_team} ${Math.round(probability * 100)}%`;
 }
 
 function readableList(items: string[]): string {
@@ -242,15 +237,15 @@ function DashboardTicker() {
   const dashboard = useDashboardData();
   const schedule = useDashboardGames(dashboard.data);
   const weekState = dashboardWeek(schedule.data || []);
-  const firstGame = weekState.games[0];
-  const secondGame = weekState.games[1];
+  const firstGame = weekState.nextGame;
+  const startedGames = weekState.games.filter((game) => apiTimestamp(game.kickoff).getTime() <= Date.now() && !game.completed).length;
   const injuryAlerts = uniqueAlertsByTitle(dashboard.data?.alerts || []).filter((alert) => !alert.read && /injur|practice|questionable|doubtful|\bout\b/i.test(`${alert.title} ${alert.message}`)).length;
   const latestSync = dashboard.data?.snapshots[0]?.retrieved_at;
   return <div className="dashboard-tape" aria-label="NFL week and data status">
     <span>NFL week <strong>{weekState.week ? String(weekState.week).padStart(2, "0") : "—"}</strong></span>
-    {firstGame ? <span>{firstGame.away_team} @ {firstGame.home_team} <strong>{gameLeader(firstGame)}</strong></span> : <span>Schedule <strong>Loading</strong></span>}
-    {secondGame && <span>{secondGame.away_team} @ {secondGame.home_team} <strong>{secondGame.total ? `O/U ${secondGame.total.toFixed(1)}` : gameLeader(secondGame)}</strong></span>}
-    <span className={injuryAlerts ? "warning" : ""}>Injury wire <strong>{injuryAlerts} new</strong></span>
+    {firstGame ? <span>{firstGame.away_team} @ {firstGame.home_team} <strong>{clockTime(firstGame.kickoff)} CT</strong></span> : <span>Schedule <strong>{schedule.isLoading ? "Loading" : "No upcoming kickoff"}</strong></span>}
+    <span>Started games <strong>{startedGames}</strong></span>
+    <span className={injuryAlerts ? "warning" : ""}>Recent injury news <strong>{injuryAlerts} unread</strong></span>
     <span>Sync <strong>{latestSync ? `${clockTime(latestSync)} CT` : "Pending"}</strong></span>
   </div>;
 }
@@ -323,35 +318,6 @@ function PageHeader({ eyebrow, title, actions }: { eyebrow: string; title: strin
   return <header className="page-header"><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1></div>{actions}</header>;
 }
 
-function PriorityWireAlert({ alert }: { alert: Alert }) {
-  const content = <>
-    <time dateTime={alert.created_at}><span>{clockTime(alert.created_at)}</span><small>{relativeAge(alert.created_at)} ago</small></time>
-    <div><strong><PlayerMentions text={alert.title} href={alert.url} /></strong><p><PlayerMentions text={alert.message} /></p></div>
-    <span className="command-alert-tag">{alert.url ? <a href={alert.url} target="_blank" rel="noopener noreferrer" aria-label={`Open article: ${alert.title}`}>{alert.severity}<ExternalLink size={12} aria-hidden="true" /></a> : alert.severity}</span>
-  </>;
-  const className = `command-alert ${alert.severity}`;
-
-  return <article className={className}>{content}</article>;
-}
-
-function CommandCenterGame({ game }: { game: Game }) {
-  const hasScore = game.away_score != null && game.home_score != null;
-  const started = apiTimestamp(game.kickoff).getTime() <= Date.now();
-  const status = game.completed ? (hasScore ? "Final" : "Final · score pending") : hasScore ? "Latest score" : started ? "Score pending" : undefined;
-
-  return <div className="command-game">
-    <div className="command-matchup">
-      <strong>{game.away_team}</strong>
-      <div className="command-game-state">
-        {hasScore && <span className="command-game-score" aria-label={`${game.away_team} ${game.away_score}, ${game.home_team} ${game.home_score}`}>{game.away_score} – {game.home_score}</span>}
-        {status ? <span className="command-game-status">{status}</span> : <time dateTime={game.kickoff}>{new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }).format(apiTimestamp(game.kickoff))}</time>}
-      </div>
-      <strong>{game.home_team}</strong>
-    </div>
-    <div className="command-market-line"><span>{gameLeader(game)}</span><span>{game.spread_home == null ? "Line —" : `${game.home_team} ${game.spread_home > 0 ? "+" : ""}${game.spread_home.toFixed(1)}`}</span><span>{game.total == null ? "O/U —" : `O/U ${game.total.toFixed(1)}`}</span></div>
-  </div>;
-}
-
 function DashboardPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useDashboardData();
@@ -371,32 +337,15 @@ function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ["news"] }),
       queryClient.invalidateQueries({ queryKey: ["sources"] }),
       queryClient.invalidateQueries({ queryKey: ["football-data-sources"] }),
+      queryClient.invalidateQueries({ queryKey: ["command-injuries"] }),
+      queryClient.invalidateQueries({ queryKey: ["weekly-lineup"] }),
+      queryClient.invalidateQueries({ queryKey: ["pool-overview"] }),
+      queryClient.invalidateQueries({ queryKey: ["command-briefings"] }),
     ]),
   });
   if (isLoading) return <Loading label="Building your command center" />;
   if (error || !data) return <ErrorPanel error={error} />;
-  const unread = data.alerts.filter((alert) => !alert.read).length;
-  const dashboardAlerts = uniqueAlertsByTitle(data.alerts).slice(0, 3);
   const weekState = dashboardWeek(schedule.data || []);
-  const poolEntries = data.pools.reduce((total, pool) => total + pool.entry_count, 0);
-  const sourceByName = new Map<string, DashboardSnapshot>();
-  data.snapshots.forEach((snapshot) => { if (!sourceByName.has(snapshot.source)) sourceByName.set(snapshot.source, snapshot); });
-  const sourceRows = [...sourceByName.values()].slice(0, 3).map((snapshot) => ({
-    key: `snapshot-${snapshot.source}`,
-    label: formatSourceLabel(snapshot.source),
-    detail: snapshot.source.includes("yahoo") ? "Roster / market" : snapshot.source.includes("draft") ? "Draft model" : "Data feed",
-    status: snapshot.status,
-    retrievedAt: snapshot.retrieved_at,
-  }));
-  const latestNewsFetch = (data.news_sources || []).find((source) => source.last_fetched_at);
-  if (sourceRows.length < 3 && latestNewsFetch?.last_fetched_at) sourceRows.push({ key: "official-wire", label: latestNewsFetch.name, detail: "Official wire", status: "fresh", retrievedAt: latestNewsFetch.last_fetched_at });
-  else if (sourceRows.length < 3 && dashboardAlerts[0]) sourceRows.push({ key: "official-wire", label: "NFL News", detail: "Official wire", status: "fresh", retrievedAt: dashboardAlerts[0].created_at });
-  sourceRows.sort((left, right) => {
-    const priority = (label: string) => label.includes("Yahoo") ? 0 : label.includes("NFLverse") ? 1 : 2;
-    return priority(left.label) - priority(right.label);
-  });
-  const sourcesOnline = sourceRows.filter((source) => source.status !== "failed" && source.status !== "error").length;
-  const nextKickoffHours = weekState.nextGame ? Math.max(0, Math.ceil((apiTimestamp(weekState.nextGame.kickoff).getTime() - Date.now()) / 3_600_000)) : undefined;
   const currentDay = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "America/Chicago" }).format(new Date());
   const currentTime = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/Chicago" }).format(new Date());
 
@@ -409,38 +358,9 @@ function DashboardPage() {
       </div>
     </header>
 
-    <section className="command-center-metrics" aria-label="Current decision metrics">
-      <div><small>Active leagues</small><strong>{String(data.leagues.length).padStart(2, "0")}</strong></div>
-      <div><small>Pool entries</small><strong>{String(poolEntries).padStart(2, "0")}</strong></div>
-      <div className="attention"><small>Decision alerts</small><strong>{String(unread).padStart(2, "0")}</strong></div>
-      <div><small>Sources online</small><strong>{String(sourcesOnline).padStart(2, "0")}<i>/ {String(sourceRows.length).padStart(2, "0")}</i></strong></div>
-      <div><small>Next kickoff</small><strong>{nextKickoffHours === undefined ? "—" : nextKickoffHours}<i>{nextKickoffHours === 1 ? "hour" : "hours"}</i></strong></div>
-    </section>
-
-
-    <div className="command-center-grid">
-      <div className="command-center-wire">
-        <section className="command-section">
-          <header className="command-section-head"><div><span className="eyebrow">Priority wire</span><h2>What changed</h2></div><Link to="/news">Open all alerts</Link></header>
-          {dashboardAlerts.length ? dashboardAlerts.map((alert) => <PriorityWireAlert key={alert.id} alert={alert} />) : <Empty title="No urgent alerts" body="Sources will appear here after the first news sync." />}
-        </section>
-
-      </div>
-
-      <aside className="command-center-intel">
-        <section className="command-side-block">
-          <header className="command-section-head"><div><span className="eyebrow">Data health</span><h2>Source status</h2></div></header>
-          {sourceRows.length ? sourceRows.map((source) => <div className="command-source-row" key={source.key}><span className={`status ${source.status}`} /><span><strong>{source.label}</strong><small>{source.detail}</small></span><time dateTime={source.retrievedAt}>{relativeAge(source.retrievedAt)}</time></div>) : <div className="command-market-empty">No synchronized sources yet.</div>}
-        </section>
-        <section className="command-side-block">
-          <header className="command-section-head"><div><span className="eyebrow">Game pulse</span><h2>Week {weekState.week || "—"} board</h2></div></header>
-          {weekState.games.length ? <>
-            <p className="command-board-note">Scores reflect the latest source update.</p>
-            {weekState.games.map((game) => <CommandCenterGame key={game.id} game={game} />)}
-          </> : <div className="command-market-empty">{schedule.isLoading ? "Loading the current NFL slate…" : "No games loaded for this week."}</div>}
-        </section>
-      </aside>
-    </div>
+    <CommandCenterContent leagues={data.leagues} alerts={data.alerts} snapshots={data.snapshots} newsSources={data.news_sources || []}
+      games={weekState.games} season={season} week={weekState.week} nextGame={weekState.nextGame}
+      scheduleLoading={schedule.isLoading} scheduleError={schedule.error} retrySchedule={() => void schedule.refetch()} />
   </div>;
 }
 

@@ -32,9 +32,7 @@ def apply_scoreboard(db: Session, payload: object, season: int, week: int) -> di
         raise ValueError("Live scoreboard returned an invalid response")
 
     games = db.query(Game).filter(Game.season == season, Game.week == week).all()
-    by_matchup = {
-        (team_code(game.away_team), team_code(game.home_team)): game for game in games
-    }
+    by_matchup = {(team_code(game.away_team), team_code(game.home_team)): game for game in games}
     matched = updated = 0
     for event in payload["events"]:
         if not isinstance(event, dict):
@@ -83,15 +81,20 @@ def apply_scoreboard(db: Session, payload: object, season: int, week: int) -> di
             game.completed = completed
             updated += 1
 
-    db.add(
-        DataSnapshot(
-            source="espn.scoreboard",
-            source_id=f"{season}:{week}",
-            retrieved_at=datetime.now(UTC),
-            status="fresh",
-            payload_json=json.dumps({"matched": matched, "updated": updated}),
-        )
+    # Keep one latest check per slate: frequent polling must not fill the
+    # dashboard's recent-source list (or the database) with identical checks.
+    snapshot = (
+        db.query(DataSnapshot)
+        .filter_by(source="espn.scoreboard", source_id=f"{season}:{week}")
+        .order_by(DataSnapshot.retrieved_at.desc())
+        .first()
     )
+    if snapshot is None:
+        snapshot = DataSnapshot(source="espn.scoreboard", source_id=f"{season}:{week}")
+        db.add(snapshot)
+    snapshot.retrieved_at = datetime.now(UTC)
+    snapshot.status = "fresh"
+    snapshot.payload_json = json.dumps({"matched": matched, "updated": updated})
     db.commit()
     return {"matched": matched, "updated": updated}
 

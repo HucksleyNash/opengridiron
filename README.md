@@ -30,10 +30,10 @@ name recorded when they were generated.
 
 ## What works
 
-- Weekly command center with alert, freshness, league, pool, and analysis status.
+- Weekly command center with prioritized owner reminders, league readiness, local pool-pick status, roster injuries, relevant news, saved analysis, and a supporting full-week Game Pulse board.
 - Manual and Yahoo-backed leagues; authenticated Yahoo page scraping; CSV/JSON player and projection imports.
 - Yahoo OAuth refresh and synchronization of settings, teams/rosters, available players, standings, scoreboards, draft results, and transactions into idempotent records and raw snapshots.
-- nflverse schedule and roster ingestion with cached source files and identity mapping, plus on-demand ESPN scoreboard updates for in-progress Game Pulse scores.
+- nflverse schedule and roster ingestion with cached source files and identity mapping, plus ESPN Game Pulse scores refreshed on Command Center load, on return to the tab, and every 30 seconds while the tab is visible. Failed checks retain saved scores and retry on the next heartbeat; individual score timestamps are not supplied.
 - NFL, ESPN and CBS NFL source registry, conditional HTTP requests, excerpts, classification, deduplication, in-app alerts, and optional Web Push.
 - Free Sleeper player-status and Fantasy Football Calculator ADP evidence, with daily caching, source dates, matching by player identity and draft format, and visible fetch controls. See [sources, usage and limitations](docs/football-data-sources.md).
 - Clickable roster and lineup players with a synopsis, projection context, official NFL injury entries, and recent player-specific articles. Reports load on demand without an API key; source dates, partial failures, and cached results are labeled.

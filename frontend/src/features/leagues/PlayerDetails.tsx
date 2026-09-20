@@ -44,6 +44,14 @@ export function PlayerMentions({ text, players, leagueId, href }: { text: string
     : href ? <a key={index} href={href} target="_blank" rel="noopener noreferrer">{part.text}</a> : part.text)}</>;
 }
 
+// Keep full-size player targets outside article prose so each name does not expand a text line.
+export function PlayerMentionActions({ text }: { text: string }) {
+  const match = useContext(PlayerMatcherContext);
+  const names = new Map<string, PlayerReference>();
+  for (const part of match(text)) if (part.player) names.set(part.player.name.toLocaleLowerCase(), part.player);
+  return names.size ? <div className="command-player-actions" aria-label="Players mentioned">{[...names.values()].map((player) => <PlayerDetailsButton key={player.name} player={player}>{player.name}</PlayerDetailsButton>)}</div> : null;
+}
+
 export function PlayerDetailsProvider({ children }: { children: ReactNode }) {
   const [selected, setSelected] = useState<PlayerSelection | null>(null);
   const location = useLocation();

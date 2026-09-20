@@ -25,9 +25,7 @@ def event(away: str, home: str, away_score: str, home_score: str, state: str) ->
 @pytest.mark.parametrize(
     ("state", "completed", "season"), [("in", False, 2084), ("post", True, 2085)]
 )
-def test_live_scoreboard_updates_matching_games_and_completion(
-    client, state, completed, season
-):
+def test_live_scoreboard_updates_matching_games_and_completion(client, state, completed, season):
     with SessionLocal() as db:
         game = Game(
             season=season,
@@ -84,3 +82,34 @@ def test_live_scoreboard_ignores_pregame_invalid_and_unmatched_events(client):
 def test_live_scoreboard_rejects_invalid_payload(client):
     with SessionLocal() as db, pytest.raises(ValueError, match="invalid response"):
         apply_scoreboard(db, {"events": {}}, 2082, 1)
+
+
+def test_repeated_score_checks_keep_one_latest_snapshot_per_week(client):
+    with SessionLocal() as db:
+        game = Game(
+            season=2081,
+            week=2,
+            away_team="GB",
+            home_team="CHI",
+            kickoff=datetime(2081, 9, 14, tzinfo=UTC),
+            source="nflverse",
+        )
+        db.add(game)
+        db.commit()
+        for points in (0, 7, 14):
+            assert apply_scoreboard(
+                db, {"events": [event("GB", "CHI", str(points), "3", "in")]}, 2081, 2
+            ) == {"matched": 1, "updated": 1}
+
+        db.refresh(game)
+        assert (game.away_score, game.home_score) == (14, 3)
+        snapshot = (
+            db.query(DataSnapshot).filter_by(source="espn.scoreboard", source_id="2081:2").one()
+        )
+        assert snapshot.status == "fresh"
+
+        apply_scoreboard(db, {"events": []}, 2081, 3)
+        assert (
+            db.query(DataSnapshot).filter_by(source="espn.scoreboard", source_id="2081:3").count()
+            == 1
+        )

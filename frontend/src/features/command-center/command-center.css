@@ -1,0 +1,123 @@
+.command-center { --command-space: 16px; }
+.command-center :is(section[id], div[id]) { scroll-margin-top: 48px; }
+.command-center :is(.warning, .attention) { color: var(--yellow); }
+.command-center .urgent { color: var(--red); }
+.command-center .neutral { color: var(--ink); }
+.command-center .command-center-grid { grid-template-columns: minmax(0, 1.85fr) minmax(320px, 1fr); align-items: start; }
+.command-center .command-center-wire, .command-center .command-center-intel { min-width: 0; }
+.command-center .command-center-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(176px, 1.25fr); }
+.command-center .command-center-metrics > a { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 16px; color: var(--ink); border-left: 1px solid var(--line); }
+.command-center .command-center-metrics > a:first-child { border-left: 0; }
+.command-center .command-center-metrics > a:hover { background: var(--panel); }
+.command-center .command-center-metrics small { font-size: 11px; line-height: 1.4; letter-spacing: .03em; }
+.command-center .command-center-metrics strong { margin: 0; font-size: 28px; }
+.command-center .command-center-metrics .command-next-time { font-size: 16px; line-height: 1.75; }
+.command-center .command-center-metrics > a > span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.command-center .command-center-metrics > .attention strong { color: var(--yellow); }
+.command-center .command-next-review { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.command-center .command-next-review:hover { background: var(--panel-strong, #141a21); }
+.command-center .command-next-label { color: var(--yellow); font: 500 11px/1.5 "IBM Plex Mono", monospace; text-transform: uppercase; }
+.command-center .command-next-review strong { display: block; font-size: 16px; line-height: 1.5; }
+.command-center .command-next-review small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.command-center .command-next-action { display: flex; align-items: center; gap: 8px; color: var(--orange-strong); font-size: 14px; }
+.command-center .command-section + .command-section { border-top: 1px solid var(--line); }
+.command-center .command-section-head { min-height: 80px; align-items: center; padding: 16px; gap: 16px; }
+.command-center .command-section-head h2 { margin: 0; font-size: 24px; }
+.command-center .command-section-head p { margin: 6px 0 0; color: var(--muted); font: 400 12px/1.5 "IBM Plex Sans", sans-serif; }
+.command-center .command-section-head > a { flex-shrink: 0; gap: 4px; font-size: 11px; letter-spacing: 0; }
+.command-center .command-note { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 16px; }
+.command-center .command-note p { flex: 1; min-width: 160px; margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.command-center .command-note a { color: var(--orange-strong); text-decoration: underline; text-underline-offset: 3px; }
+.command-center .command-caption { display: block; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.command-center .command-footnote { margin: 0; padding: 12px 16px 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.command-center .command-league-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 16px; padding: 12px 16px 16px; border-bottom: 1px solid var(--line-soft); }
+.command-center .command-row-title { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; font-size: 18px; font-weight: 600; }
+.command-center .command-row-title svg { color: var(--orange-strong); }
+.command-center .command-league-summary { display: grid; align-content: center; justify-items: start; gap: 4px; padding-top: 8px; font-size: 14px; line-height: 1.5; }
+.command-center .command-league-summary > strong { font-weight: 500; }
+.command-center .command-league-summary > span { color: var(--muted); }
+.command-center .command-league-summary > .command-league-watch { color: var(--yellow); }
+.command-center .command-league-summary > a { display: flex; align-items: center; min-height: 44px; color: var(--yellow); text-decoration: underline; text-underline-offset: 3px; }
+.command-center .command-pool-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 16px 0; }
+.command-center .command-pool-heading h3 { margin: 0; font: 600 20px "Barlow Condensed", sans-serif; }
+.command-center .command-pool-heading > a { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--orange-strong); font-size: 12px; }
+.command-center .command-pool-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 72px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); font-size: 14px; }
+.command-center .command-pool-row:hover, .command-center .command-briefing:hover { background: var(--panel); }
+.command-center .command-pool-row > span { min-width: 0; }
+.command-center .command-pool-row strong { display: block; font-weight: 500; }
+.command-center .command-pool-row small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.command-center .command-pool-row > span:last-child { display: flex; align-items: center; gap: 8px; font-size: 12px; text-align: right; }
+.command-center .command-pool-row svg { flex-shrink: 0; }
+.command-center .command-injury-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .9fr); gap: 16px; padding: 8px 16px 12px; border-bottom: 1px solid var(--line-soft); }
+.command-center .command-player-name { display: inline-flex; align-items: center; min-height: 44px; gap: 8px; color: var(--orange-strong); font-size: 16px; font-weight: 600; }
+.command-center .command-memberships { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.command-center .command-memberships a { display: inline-flex; align-items: center; min-height: 44px; color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.command-center .command-injury-state { display: grid; align-content: center; gap: 4px; padding-block: 8px; }
+.command-center .command-injury-state strong { font-size: 14px; font-weight: 500; }
+.command-center .command-injury-state span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.command-center .command-alert { display: block; min-height: 0; padding: 16px; }
+.command-center .command-news-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 8px; }
+.command-center .command-alert time { display: inline; color: var(--muted); font: 400 11px/1.5 "IBM Plex Mono", monospace; }
+.command-center .command-alert-tag { font-size: 11px; line-height: 1.5; letter-spacing: .02em; }
+.command-center .command-news-relevance { color: var(--orange-strong); font-size: 12px; }
+.command-center .command-alert h3 { margin: 0 0 8px; font: 600 16px/1.5 "IBM Plex Sans", sans-serif; }
+.command-center .command-alert h3 a { color: var(--ink); }
+.command-center .command-alert h3 a:hover { color: var(--orange-strong); text-decoration: underline; text-underline-offset: 3px; }
+.command-center .command-alert p { max-width: 72ch; margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.command-center .command-news-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; margin-top: 8px; }
+.command-center .command-player-actions { display: flex; flex-wrap: wrap; gap: 0 16px; min-width: 0; }
+.shell .command-center .command-player-actions .player-details-trigger { display: inline-flex; align-items: center; font-size: 12px; min-height: 44px; padding: 0; }
+.command-center .command-article-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-left: auto; color: var(--orange-strong); font-size: 12px; }
+.command-center .command-show-more { display: flex; align-items: center; justify-content: center; min-height: 48px; width: 100%; padding: 12px 16px; border: 0; border-radius: 0; color: var(--orange-strong); font-size: 14px; }
+.command-center .command-briefing { display: block; padding: 16px; border-bottom: 1px solid var(--line-soft); }
+.command-center .command-briefing strong { display: block; font-size: 16px; line-height: 1.5; }
+.command-center .command-briefing > span { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.command-center .command-briefing p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 8px 0 0; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.command-center .command-board-note { margin: 12px 16px 4px; font: 400 12px/1.5 "IBM Plex Sans", sans-serif; }
+.command-center .command-score-check { margin: 0 16px 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.command-center .command-game-group > h3 { display: flex; justify-content: space-between; align-items: center; margin: 0; padding: 8px 16px; border-block: 1px solid var(--line); color: var(--muted); background: var(--panel); font: 500 11px/1.5 "IBM Plex Mono", monospace; }
+.command-center .command-game { padding: 12px 16px; }
+.command-center .command-game-top { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--muted); font: 400 11px/1.5 "IBM Plex Mono", monospace; }
+.command-center .command-game-top time { text-align: right; }
+.command-center .command-matchup { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.command-center .command-matchup strong { font-size: 24px; }
+.command-center .command-game-score { font-size: 18px; }
+.command-center .command-game-at { color: var(--muted); font-size: 12px; }
+.command-center .command-market-line { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font: 400 11px/1.5 "IBM Plex Mono", monospace; }
+.command-center .command-game-provenance { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.command-center .command-game-owned { margin: 8px 0 0; color: var(--orange-strong); font-size: 12px; line-height: 1.5; }
+.command-center .command-source-row { min-height: 72px; gap: 8px; padding: 12px 16px; }
+.command-center .command-source-row strong { overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
+.command-center .command-source-row small, .command-center .command-source-row time { font-size: 11px; line-height: 1.5; }
+.command-center :is(a, button):focus-visible { outline: 2px solid var(--orange-strong); outline-offset: -2px; }
+.command-center a { overflow-wrap: anywhere; }
+.command-center .command-center-intel { border-left: 1px solid var(--line); }
+
+@media (max-width: 1100px) {
+  .command-center .command-center-grid { grid-template-columns: 1fr; }
+  .command-center .command-center-intel { border-left: 0; border-top: 1px solid var(--line); }
+  .command-center .command-game-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .command-center .command-game-group > h3 { grid-column: 1 / -1; }
+  .command-center .command-game { border-right: 1px solid var(--line-soft); }
+  .command-center .command-center-metrics { grid-template-columns: repeat(5, minmax(156px, 1fr)); overflow-x: auto; }
+}
+@media (max-width: 600px) {
+  .command-center .command-next-review { grid-template-columns: 1fr; gap: 8px; }
+  .command-center .command-next-action { font-size: 12px; }
+  .command-center .command-center-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+  .command-center .command-center-metrics > a { gap: 4px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
+  .command-center .command-center-metrics > a:nth-child(odd) { border-left: 0; }
+  .command-center .command-center-metrics > a:last-child { grid-column: 1 / -1; grid-template-columns: 1fr auto; align-items: center; }
+  .command-center .command-center-metrics > a:last-child > span { grid-column: 1 / -1; }
+  .command-center .command-center-metrics strong { font-size: 24px; }
+  .command-center .command-section-head { gap: 12px; }
+  .command-center .command-section-head h2 { font-size: 22px; }
+  .command-center .command-section-head > a { font-size: 11px; }
+  .command-center .command-league-row { grid-template-columns: 1fr; gap: 4px; }
+  .command-center .command-league-summary { padding-top: 0; }
+  .command-center .command-injury-row { grid-template-columns: 1fr; gap: 0; }
+  .command-center .command-injury-state { padding-top: 0; }
+  .command-center .command-pool-row { align-items: start; }
+  .command-center .command-game-group { grid-template-columns: 1fr; }
+  .command-center .command-game { border-right: 0; }
+}
