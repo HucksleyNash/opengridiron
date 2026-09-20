@@ -99,6 +99,7 @@ from .services.football_sources import (
     refresh_source as refresh_football_source,
 )
 from .services.league_queries import waiver_page
+from .services.live_scores import sync_live_scores
 from .services.modeling import (
     brier_score,
     list_model_artifacts,
@@ -863,6 +864,21 @@ async def nflverse_schedule_sync(
     trigger: Literal["missing", "scheduled", "retry"] = "retry",
 ) -> dict[str, int | str]:
     return await sync_nflverse_schedule(db, season, trigger=trigger)
+
+
+@router.post("/sync/live-scores")
+async def live_score_sync(
+    db: Db,
+    season: int = Query(ge=2000, le=2100),
+    week: int = Query(ge=1, le=22),
+) -> dict[str, int | str]:
+    try:
+        return await sync_live_scores(db, season, week)
+    except (httpx.HTTPError, ValueError) as exc:
+        db.rollback()
+        raise HTTPException(
+            502, "Live NFL scores could not be refreshed; cached scores were kept."
+        ) from exc
 
 
 @router.post("/sync/nflverse/rosters")

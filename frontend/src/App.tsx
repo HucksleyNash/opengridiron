@@ -101,15 +101,37 @@ function readableList(items: string[]): string {
   return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
 }
 
-async function refreshCommandCenterSources(): Promise<DashboardRefreshOutcome> {
+async function refreshCommandCenterSources(season: number, week?: number): Promise<DashboardRefreshOutcome> {
   const completed: string[] = [];
   const failures: string[] = [];
   const details: string[] = [];
-  const [yahoo, sourceRegistry, dataRegistry] = await Promise.allSettled([
+  const scheduleRequest = post(`/sync/nflverse/schedule?season=${season}&trigger=retry`);
+  const liveScoreRequest = week
+    ? scheduleRequest.catch(() => undefined).then(() => post(`/sync/live-scores?season=${season}&week=${week}`))
+    : Promise.resolve(undefined);
+  const [schedule, liveScores, yahoo, sourceRegistry, dataRegistry] = await Promise.allSettled([
+    scheduleRequest,
+    liveScoreRequest,
     post("/integrations/yahoo/scraper/sync"),
     api<DashboardNewsSource[]>("/news/sources"),
     api<FootballDataSource[]>("/data-sources"),
   ]);
+
+  if (schedule.status === "fulfilled") {
+    completed.push("NFL scores/schedule");
+  } else {
+    failures.push("NFL scores/schedule");
+    details.push(schedule.reason instanceof Error ? schedule.reason.message : "NFL schedule refresh failed.");
+  }
+
+  if (week) {
+    if (liveScores.status === "fulfilled") {
+      completed.push("live NFL scores");
+    } else {
+      failures.push("live NFL scores");
+      details.push(liveScores.reason instanceof Error ? liveScores.reason.message : "Live NFL score refresh failed.");
+    }
+  }
 
   if (yahoo.status === "fulfilled") {
     completed.push("Yahoo roster/market", "NFLverse draft models");
@@ -334,8 +356,10 @@ function DashboardPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useDashboardData();
   const schedule = useDashboardGames(data);
+  const season = data?.pools[0]?.season || data?.leagues[0]?.season || new Date().getFullYear();
+  const activeWeek = dashboardWeek(schedule.data || []).week;
   const refreshSources = useMutation({
-    mutationFn: refreshCommandCenterSources,
+    mutationFn: () => refreshCommandCenterSources(season, activeWeek),
     onSettled: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
       queryClient.invalidateQueries({ queryKey: ["dashboard-games"] }),

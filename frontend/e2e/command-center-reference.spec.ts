@@ -3,9 +3,10 @@ import { expect, Page, test } from "@playwright/test";
 const defaultGame = { id: 1, season: 2099, week: 1, away_team: "NE", home_team: "SEA", kickoff: "2099-09-10T00:20:00Z", home_win_probability: 0.62, home_cover_probability: 0.51, spread_home: 3.5, total: 44.5, source: "nflverse", source_timestamp: "2099-09-01T12:00:00Z", win_probability_kind: "market", cover_probability_kind: "market" };
 type BoardGame = Omit<typeof defaultGame, "spread_home" | "total"> & { spread_home: number | null; total: number | null; home_score?: number | null; away_score?: number | null; completed?: boolean };
 
-async function mockCommandCenter(page: Page, games: BoardGame[] = [defaultGame]) {
+async function mockCommandCenter(page: Page, games: BoardGame[] = [defaultGame], refreshedGames?: BoardGame[]) {
   const league = { id: 1, name: "North Star", season: 2099, source: "yahoo_scrape", scoring: {}, roster_slots: ["QB"], player_count: 120 };
   const pool = { id: 1, name: "Sunday Pool", pool_type: "survivor", season: 2099, entry_count: 3, rules: { direction: "winner", basis: "straight_up", picks_per_week: 1, max_team_uses: 1, allowed_teams: [], blocked_teams: [], tie_result: "push", lock_mode: "game_start", confidence_weights: [], future_value_weight: 0.1 } };
+  let currentGames = games;
 
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -19,7 +20,14 @@ async function mockCommandCenter(page: Page, games: BoardGame[] = [defaultGame])
       snapshots: [{ id: 1, source: "yahoo_scrape", retrieved_at: "2099-09-01T12:00:00Z", status: "fresh" }, { id: 2, source: "nflverse.draft_model", retrieved_at: "2099-09-01T12:01:00Z", status: "fresh" }],
       analysis_runs: [],
     });
-    if (path.endsWith("/games")) return json(games);
+    if (path.endsWith("/games")) return json(currentGames);
+    if (path.endsWith("/sync/nflverse/schedule")) return json({ status: "completed", updated: currentGames.length, created: 0 });
+    if (path.endsWith("/sync/live-scores")) {
+      currentGames = refreshedGames || currentGames;
+      return json({ status: "completed", updated: currentGames.length, matched: currentGames.length });
+    }
+    if (path.endsWith("/integrations/yahoo/scraper/sync")) return json({ status: "completed" });
+    if (path.endsWith("/news/sources") || path.endsWith("/data-sources")) return json([]);
     return json({ detail: `Unhandled mock route: ${path}` });
   });
 }
@@ -93,6 +101,21 @@ test("week board tolerates unpublished betting lines and missing results", async
   await expect(game).toContainText("Score pending");
   await expect(game).toContainText("Line —");
   await expect(game).toContainText("O/U —");
+});
+
+test("refresh sources pulls the latest Game Pulse scores", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-20T20:00:00Z"));
+  const pending = { ...weeklyGames()[2], away_score: null, home_score: null, completed: false };
+  const live = { ...pending, away_score: 10, home_score: 14 };
+  await mockCommandCenter(page, [pending], [live]);
+  await page.goto("/");
+
+  const game = page.locator(".command-game");
+  await expect(game).toContainText("Score pending");
+  await page.getByRole("button", { name: "Refresh sources" }).click();
+  await expect(game.getByLabel("CAR 10, CHI 14")).toBeVisible();
+  await expect(game).toContainText("Latest score");
+  await expect(page.getByRole("status")).toContainText("live NFL scores");
 });
 
 for (const completed of [false, true]) {
