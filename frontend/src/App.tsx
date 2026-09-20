@@ -71,12 +71,22 @@ function clockTime(value: string): string {
   return new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Chicago" }).format(apiTimestamp(value));
 }
 
+function footballWeekStart(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", year: "numeric", month: "numeric", day: "numeric" }).formatToParts(date);
+  const part = (type: string) => Number(parts.find((item) => item.type === type)!.value);
+  const day = new Date(Date.UTC(part("year"), part("month") - 1, part("day")));
+  // Keep the Thursday-through-Monday slate visible until Tuesday in Central time.
+  return day.getTime() - ((day.getUTCDay() + 5) % 7) * 86_400_000;
+}
+
 function dashboardWeek(games: Game[]): { week?: number; nextGame?: Game; games: Game[] } {
-  const sorted = games.slice().sort((left, right) => apiTimestamp(left.kickoff).getTime() - apiTimestamp(right.kickoff).getTime());
-  const nextGame = sorted.find((game) => apiTimestamp(game.kickoff).getTime() > Date.now());
-  const anchor = nextGame || sorted.at(-1);
+  const now = Date.now();
+  const sorted = games.slice().sort((left, right) => apiTimestamp(left.kickoff).getTime() - apiTimestamp(right.kickoff).getTime() || left.id - right.id);
+  const nextGame = sorted.find((game) => apiTimestamp(game.kickoff).getTime() > now);
+  const lastStarted = sorted.filter((game) => apiTimestamp(game.kickoff).getTime() <= now).at(-1);
+  const anchor = lastStarted && footballWeekStart(apiTimestamp(lastStarted.kickoff)) === footballWeekStart(new Date(now)) ? lastStarted : nextGame || lastStarted;
   if (!anchor) return { games: [] };
-  return { week: anchor.week, nextGame, games: sorted.filter((game) => game.week === anchor.week).slice(0, 3) };
+  return { week: anchor.week, nextGame, games: sorted.filter((game) => game.week === anchor.week) };
 }
 
 function gameLeader(game: Game): string {
@@ -302,6 +312,24 @@ function PriorityWireAlert({ alert }: { alert: Alert }) {
   return <article className={className}>{content}</article>;
 }
 
+function CommandCenterGame({ game }: { game: Game }) {
+  const hasScore = game.away_score != null && game.home_score != null;
+  const started = apiTimestamp(game.kickoff).getTime() <= Date.now();
+  const status = game.completed ? (hasScore ? "Final" : "Final · score pending") : hasScore ? "Latest score" : started ? "Score pending" : undefined;
+
+  return <div className="command-game">
+    <div className="command-matchup">
+      <strong>{game.away_team}</strong>
+      <div className="command-game-state">
+        {hasScore && <span className="command-game-score" aria-label={`${game.away_team} ${game.away_score}, ${game.home_team} ${game.home_score}`}>{game.away_score} – {game.home_score}</span>}
+        {status ? <span className="command-game-status">{status}</span> : <time dateTime={game.kickoff}>{new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }).format(apiTimestamp(game.kickoff))}</time>}
+      </div>
+      <strong>{game.home_team}</strong>
+    </div>
+    <div className="command-market-line"><span>{gameLeader(game)}</span><span>{game.spread_home == null ? "Line —" : `${game.home_team} ${game.spread_home > 0 ? "+" : ""}${game.spread_home.toFixed(1)}`}</span><span>{game.total == null ? "O/U —" : `O/U ${game.total.toFixed(1)}`}</span></div>
+  </div>;
+}
+
 function DashboardPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useDashboardData();
@@ -382,7 +410,10 @@ function DashboardPage() {
         </section>
         <section className="command-side-block">
           <header className="command-section-head"><div><span className="eyebrow">Game pulse</span><h2>Week {weekState.week || "—"} board</h2></div></header>
-          {weekState.games.length ? weekState.games.map((game) => <div className="command-game" key={game.id}><div className="command-matchup"><strong>{game.away_team}</strong><time dateTime={game.kickoff}>{new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }).format(apiTimestamp(game.kickoff))}</time><strong>{game.home_team}</strong></div><div className="command-market-line"><span>{gameLeader(game)}</span><span>{game.spread_home === undefined ? "Line —" : `${game.home_team} ${game.spread_home > 0 ? "+" : ""}${game.spread_home.toFixed(1)}`}</span><span>{game.total === undefined ? "O/U —" : `O/U ${game.total.toFixed(1)}`}</span></div></div>) : <div className="command-market-empty">{schedule.isLoading ? "Loading the current NFL slate…" : "No games loaded for this week."}</div>}
+          {weekState.games.length ? <>
+            <p className="command-board-note">Scores reflect the latest source update.</p>
+            {weekState.games.map((game) => <CommandCenterGame key={game.id} game={game} />)}
+          </> : <div className="command-market-empty">{schedule.isLoading ? "Loading the current NFL slate…" : "No games loaded for this week."}</div>}
         </section>
       </aside>
     </div>

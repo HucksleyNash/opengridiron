@@ -73,8 +73,11 @@ export type Game = {
   kickoff: string;
   home_win_probability: number;
   home_cover_probability: number;
-  spread_home?: number;
-  total?: number;
+  spread_home?: number | null;
+  total?: number | null;
+  home_score?: number | null;
+  away_score?: number | null;
+  completed?: boolean;
   source: string;
   source_timestamp: string;
   source_game_key?: string;
