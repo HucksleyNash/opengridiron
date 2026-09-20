@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+head="$(git rev-parse HEAD)"
+has_updates=false
+while read -r local_ref local_oid remote_ref remote_oid; do
+  # Branch/tag deletion does not publish code.
+  [[ "$local_oid" =~ ^0+$ ]] && continue
+  has_updates=true
+  if [[ "$(git rev-parse "${local_oid}^{commit}")" != "$head" ]]; then
+    echo "Push blocked: check out $local_ref before pushing it so CI tests the pushed commit." >&2
+    exit 1
+  fi
+done
+[[ "$has_updates" == true ]] || exit 0
+
+require_clean_tree() {
+  if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+    echo "Push blocked: commit or stash changes and untracked files before running CI." >&2
+    echo "The checks must test the same source that GitHub receives." >&2
+    exit 1
+  fi
+}
+
+require_clean_tree
+bash scripts/check.sh all </dev/null
+require_clean_tree
+if [[ "$(git rev-parse HEAD)" != "$head" ]]; then
+  echo "Push blocked: HEAD changed while CI checks were running. Retry the push." >&2
+  exit 1
+fi

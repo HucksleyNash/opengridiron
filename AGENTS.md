@@ -18,6 +18,22 @@ Key routing rules:
 - Resume context: invoke `/context-restore`.
 - Author a backlog-ready spec/issue: invoke `/spec`.
 
+## Required CI gate
+
+- On a new clone, install development dependencies and Chromium as described in
+  `README.md`, then enable the tracked hook with
+  `git config --local core.hooksPath .githooks`.
+- Before every push, run `bash scripts/check.sh` from the repository root. This is
+  the same check command used by GitHub Actions; focused tests alone do not count.
+- Fix every failing check before pushing. Never bypass the pre-push hook, disable
+  a check, weaken an assertion, or skip a failing test to get a green result.
+- Commit or stash changes before pushing; verify the actual outgoing commit.
+- When changing CI checks, update `scripts/check.sh` so local and hosted checks
+  remain aligned. Keep Ruff and pnpm versions consistent with their manifests.
+- After pushing, inspect the GitHub Actions run for the pushed SHA. Do not call
+  work complete while that run is pending or failing. If verification is blocked,
+  report the blocker explicitly instead of claiming success.
+
 ## Design System
 
 Always read `DESIGN.md` before making visual or UI decisions.

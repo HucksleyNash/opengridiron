@@ -266,23 +266,36 @@ Python 3.12 and Node 22 are recommended.
 python3.12 -m venv .venv
 .venv/bin/python -m pip install --upgrade 'pip>=26.2.1,<27'
 .venv/bin/pip install -e '.[dev]'
-.venv/bin/pytest
-.venv/bin/ruff format --check backend codex_runner
-.venv/bin/ruff check backend codex_runner
-
-PYTHONPATH=backend:. .venv/bin/python backend/tests/perf/draft_benchmark.py --json
-
 cd frontend
 corepack enable
 pnpm install --frozen-lockfile
-pnpm test
-pnpm run build
 pnpm exec playwright install chromium
-pnpm exec playwright test analysis-context.spec.ts weekly-analysis.spec.ts pool-week.spec.ts draft-room.spec.ts sleeper-pools.spec.ts --project=chromium
 cd ..
+
+git config --local core.hooksPath .githooks
+bash scripts/check.sh
 ```
 
-The browser command above matches the CI Chromium journeys. Use `pnpm test:e2e` from `frontend` to run the full browser suite, including tablet and mobile projects. Optional backend features can be installed with `.venv/bin/pip install -e '.[dev,ml,push]'`; the Docker image includes the forecasting and Web Push extras.
+`scripts/check.sh` is shared by local development, the pre-push hook, and GitHub
+Actions. It checks Python formatting and lint before running backend tests, a
+frozen frontend dependency install, frontend tests, the production build, and the
+CI Chromium journeys. Focused checks are available with `backend` or `frontend`.
+Install Chromium and its system dependencies with `pnpm exec playwright install
+--with-deps chromium` on Linux. Ruff is pinned so local formatting matches CI;
+pnpm's version comes from `frontend/package.json` in both environments.
+
+Enable the hook once in every clone using the command above. It blocks pushes
+when checks fail, changes are uncommitted, or the pushed commit is not checked
+out. Commit or stash changes before pushing so the hook tests the source being
+published. Do not bypass the hook to publish failing changes. Git hooks are local
+and can be bypassed; GitHub branch protection must separately require the
+`backend` and `frontend` checks to pass before merging into `main`.
+
+Use `pnpm test:e2e` from `frontend` to run the full browser suite, including tablet
+and mobile projects. Optional backend features can be installed with
+`.venv/bin/pip install -e '.[dev,ml,push]'`; the Docker image includes the
+forecasting and Web Push extras. Run the optional performance benchmark with
+`PYTHONPATH=backend:. .venv/bin/python backend/tests/perf/draft_benchmark.py --json`.
 
 From the repository root, initialize or migrate the local database and run the API:
 
