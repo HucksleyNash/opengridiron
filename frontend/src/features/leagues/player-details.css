@@ -44,6 +44,27 @@
 .player-injury-report + .player-injury-report { border-top: 1px solid var(--line-soft); padding-top: 16px; }
 .player-sources > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; padding-block: 12px; border-top: 1px solid var(--line-soft); font-size: 14px; }
 .player-sources > div > p { flex-basis: 100%; margin: 0; }
+.player-points-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 12px; }
+.player-points-heading h3 { margin: 0 0 8px; font-size: 24px; }
+.player-points-table-wrap { overflow-x: auto; margin: 24px 0 16px; }
+.player-points-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.player-points-table th, .player-points-table td { padding: 12px 8px; border-bottom: 1px solid var(--line-soft); text-align: right; vertical-align: top; font: 500 14px/1.5 "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.player-points-table th:first-child { width: 26%; text-align: left; padding-left: 0; }
+.player-points-table th:last-child, .player-points-table td:last-child { padding-right: 0; }
+.player-points-table thead th { color: var(--muted); font-size: 11px; font-weight: 400; }
+.player-points-table small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
+.player-points-table .is-current { background: var(--panel-raised); }
+.player-points-table .is-current th { color: var(--orange); }
+.player-points-table .is-unavailable { color: var(--muted); font-size: 11px; font-weight: 400; }
+.player-dialog .player-points-warning { display: block; min-height: 44px; margin-left: auto; padding: 8px 0; border: 0; background: transparent; color: var(--yellow); font-size: 11px; text-decoration: underline; }
+.player-points-sources { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 16px; }
+.player-points-sources > summary { min-height: 44px; cursor: pointer; }
+.player-points-scoring { margin: 8px 0 16px; }
+.player-points-scoring > div { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; font-size: 12px; }
+.player-points-scoring dd { margin: 0; font-family: "IBM Plex Mono", monospace; }
+.player-points-evidence { padding: 16px 0; border-top: 1px solid var(--line-soft); scroll-margin-top: 16px; }
+.player-points-evidence h4 { margin: 0 0 12px; }
+.player-points-evidence-warning { display: block; color: var(--yellow); margin-top: 4px; }
 @media (max-width: 600px) {
   .player-dialog-header, .player-dialog-body { padding: 16px; }
   .player-dialog > .league-detail-tabs { padding-inline: 16px; gap: 20px; }
@@ -53,4 +74,6 @@
   .player-stat-tape > div { padding: 12px 8px; }
   .player-dialog a { display: inline-block; min-height: 44px; padding-block: 8px; }
   .player-stat-tape dd { font-size: 20px; }
+  .player-points-table th, .player-points-table td { padding-inline: 4px; font-size: 13px; }
+  .player-points-table thead th, .player-points-table .is-unavailable { font-size: 11px; }
 }

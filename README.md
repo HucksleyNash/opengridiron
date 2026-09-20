@@ -51,6 +51,13 @@ name recorded when they were generated.
 
 ## Weekly league analysis
 
+Open a player card and select **Points** to compare Open Gridiron projections,
+Yahoo projections, and league-scored actual points for weeks 1–18. Past projections
+require a saved pregame capture; missing history, unpublished Yahoo values, and byes
+are labeled separately from zeroes. **Refresh points** checks cached NFL inputs and
+the current Yahoo week. Actual points wait for final game statistics; they are not
+live scores. Scoring differences and source details appear beside the comparison.
+
 Open a league and choose **My team** once. Open Gridiron saves a separate choice for
 each league and defaults its roster, forecasts, and new draft setup to that team,
 including after a reload or on another device. You can still inspect other teams

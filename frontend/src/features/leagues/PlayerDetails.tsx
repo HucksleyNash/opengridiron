@@ -7,6 +7,7 @@ import type { Player } from "../../types";
 import { normalizePosition, slotLabel, sourceTime } from "./league-display";
 import { DetailTabs } from "./DetailTabs";
 import { ProjectionDetails, type RankingEvidence } from "./ProjectionDetails";
+import { PlayerPoints } from "./PlayerPoints";
 import { createPlayerMatcher, isCompletePlayer, playerMatches, type PlayerReference } from "./player-links";
 import "./league.css";
 import "./player-details.css";
@@ -16,7 +17,7 @@ type ReportSource = { name: string; url: string; status: "ok" | "stale" | "unava
 type InjuryReport = { player_name: string; team: string; injury: string; practice_status: string; game_status: string; report_period: string; url: string; retrieved_at: string };
 type Synopsis = { player: Player; synopsis: string; injury_reports: InjuryReport[]; articles: Article[]; sources: ReportSource[]; news_window_days: number };
 
-const PLAYER_TABS = [{ id: "overview", label: "Overview" }, { id: "projections", label: "Projections" }, { id: "news", label: "News & sources" }] as const;
+const PLAYER_TABS = [{ id: "overview", label: "Overview" }, { id: "projections", label: "Projections" }, { id: "points", label: "Points" }, { id: "news", label: "News & sources" }] as const;
 type PlayerTab = typeof PLAYER_TABS[number]["id"];
 type PlayerSelection = { player: PlayerReference; initialTab: PlayerTab; ranking?: RankingEvidence };
 const PlayerDetailsContext = createContext<(selection: PlayerSelection) => void>(() => {});
@@ -84,7 +85,7 @@ function PlayerDetails({ initialPlayer, initialTab, ranking, onClose, directoryL
   const playerId = reference.id;
   const stored = useQuery({ queryKey: ["player", playerId], queryFn: ({ signal }) => api<Player>(`/players/${playerId}`, { signal }), enabled: playerId != null && !isCompletePlayer(initialPlayer), retry: false });
   const queryKey = ["player-synopsis", playerId];
-  const query = useQuery({ queryKey, queryFn: ({ signal }) => api<Synopsis>(`/players/${playerId}/synopsis`, { signal }), staleTime: 60_000, retry: false, enabled: playerId != null && selectedTab !== "projections" });
+  const query = useQuery({ queryKey, queryFn: ({ signal }) => api<Synopsis>(`/players/${playerId}/synopsis`, { signal }), staleTime: 60_000, retry: false, enabled: playerId != null && (selectedTab === "overview" || selectedTab === "news") });
   const refresh = useMutation({
     mutationFn: () => api<Synopsis>(`/players/${playerId}/synopsis?refresh=true`),
     onSuccess: (data) => queryClient.setQueryData(queryKey, data),
@@ -131,7 +132,7 @@ function PlayerDetails({ initialPlayer, initialTab, ranking, onClose, directoryL
     // Keep draft shortcuts (especially Escape and /) from changing the underlying room.
     event.stopPropagation();
     if (event.key !== "Tab") return;
-    const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button, a[href], [tabindex]'))
+    const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button, a[href], summary, [tabindex]'))
       .filter((element) => element.tabIndex >= 0 && !element.matches(':disabled') && element.getClientRects().length > 0);
     const first = focusable[0], last = focusable[focusable.length - 1];
     if (event.shiftKey && document.activeElement === first && last) {
@@ -182,6 +183,9 @@ function PlayerDetails({ initialPlayer, initialTab, ranking, onClose, directoryL
       </div>
       <div role="tabpanel" id="player-detail-panel-projections" aria-labelledby="player-detail-tab-projections" hidden={selectedTab !== "projections"} tabIndex={0}>
         {selectedTab === "projections" && (fullPlayer ? <ProjectionDetails player={fullPlayer} ranking={ranking} /> : <p>Projections will appear when player information is available.</p>)}
+      </div>
+      <div role="tabpanel" id="player-detail-panel-points" aria-labelledby="player-detail-tab-points" hidden={selectedTab !== "points"} tabIndex={0}>
+        {selectedTab === "points" && (playerId != null ? <PlayerPoints key={playerId} playerId={playerId} /> : <p>Choose a league player record to view weekly points.</p>)}
       </div>
       <div role="tabpanel" id="player-detail-panel-news" aria-labelledby="player-detail-tab-news" hidden={selectedTab !== "news"} tabIndex={0}>
         {selectedTab === "news" && <>

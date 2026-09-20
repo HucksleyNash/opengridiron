@@ -109,6 +109,7 @@ from .services.news import fetch_source
 from .services.nflverse import nfl_season_for_date
 from .services.nflverse import sync_rosters as sync_nflverse_rosters
 from .services.nflverse import sync_schedule as sync_nflverse_schedule
+from .services.player_points import player_points
 from .services.player_synopsis import player_reports
 from .services.projection_context import (
     context_for,
@@ -595,6 +596,14 @@ async def get_player_synopsis(player_id: int, db: Db, refresh: bool = False) -> 
         raise HTTPException(404, "Player not found")
     reports = await player_reports(db, player, refresh)
     return PlayerSynopsisOut(player=_player_out(player), **reports)
+
+
+@router.get("/players/{player_id}/points")
+async def get_player_points(player_id: int, db: Db, refresh: bool = False) -> dict:
+    player = db.get(Player, player_id)
+    if not player:
+        raise HTTPException(404, "Player not found")
+    return await player_points(db, player, refresh)
 
 
 @router.put("/players/{player_id}", response_model=PlayerOut)
