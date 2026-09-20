@@ -48,6 +48,9 @@ async function mockLeague(page: Page, partial = false, leagueId = 1) {
     if (path.endsWith("/onboarding/status")) return json({ configured: true, auth_required: false, capabilities: { draft_suite: true } });
     if (path.endsWith("/system/health")) return json({ status: "ok" });
     if (path.endsWith("/dashboard")) return json({ leagues: [league], pools: [], alerts: [], snapshots: [], news_sources: [], analysis_runs: [] });
+    if (path.endsWith("/injuries")) return json({ items: [], sources: [] });
+    if (path.endsWith("/pools/overview")) return json({ pools: [] });
+    if (path.endsWith("/analysis/library")) return json([]);
     if (path.endsWith("/providers")) return json([{ id: 1, name: "Test analyst", model: "test", enabled: true, task_defaults: ["recommendation"] }]);
     if (path.endsWith("/players/directory") || path.endsWith("/roster")) return json(players);
     if (path.endsWith("/draft-sessions")) return json([]);
