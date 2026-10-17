@@ -203,7 +203,9 @@ def _parse_scoring_value(value: str) -> float | None:
 
 
 def _scoring_name(value: str) -> str:
-    normalized = value.strip().lower()
+    # Yahoo nests its default-value note inside some stat labels. The league's
+    # configured value comes from the adjacent cell, not this annotation.
+    normalized = re.sub(r"[\s(]+yahoo\s+default\b.*$", "", value.strip().lower()).strip()
     if normalized in SCORING_NAMES:
         return SCORING_NAMES[normalized]
     return re.sub(r"[^a-z0-9]+", "_", normalized).strip("_")

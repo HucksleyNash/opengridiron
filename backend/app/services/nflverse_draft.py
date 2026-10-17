@@ -134,7 +134,8 @@ def _normalized_scoring(scoring: dict[str, float]) -> dict[str, float]:
     normalized: dict[str, float] = {}
     for raw_name, value in scoring.items():
         key = re.sub(r"[^a-z0-9]+", "_", raw_name.lower()).strip("_")
-        key = re.sub(r"_yahoo_default$", "", key)
+        # Older scraper imports saved the default value as part of the label.
+        key = re.sub(r"_yahoo_default(?:_.*)?$", "", key)
         key = SCORING_ALIASES.get(key, key)
         normalized[key] = float(value)
     return normalized

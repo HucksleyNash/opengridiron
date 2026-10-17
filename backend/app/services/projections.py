@@ -68,16 +68,19 @@ ALIASES: dict[str, str] = {
 }
 
 
-def canonical_stat_name(value: str) -> str:
+def canonical_stat_name(value: str, *, scoring_rule: bool = False) -> str:
     normalized = re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).strip()
-    normalized = re.sub(r"\s+yahoo\s+default$", "", normalized).strip()
+    normalized = re.sub(r"\s+yahoo\s+default(?:\s+.*)?$", "", normalized).strip()
+    # Yahoo's singular scoring label is defensive; raw-stat aliases remain offensive.
+    if scoring_rule and normalized == "interception":
+        return "interception"
     return ALIASES.get(normalized, normalized.replace(" ", "_"))
 
 
 def normalize_scoring(scoring: Mapping[str, float]) -> dict[str, float]:
     normalized = DEFAULT_SCORING.copy()
     for key, value in scoring.items():
-        normalized[canonical_stat_name(key)] = float(value)
+        normalized[canonical_stat_name(key, scoring_rule=True)] = float(value)
     return normalized
 
 
@@ -145,7 +148,9 @@ def scale_projection_range(
 
 
 def scoring_context(scoring: Mapping[str, float]) -> dict[str, object]:
-    configured = {canonical_stat_name(key): float(value) for key, value in scoring.items()}
+    configured = {
+        canonical_stat_name(key, scoring_rule=True): float(value) for key, value in scoring.items()
+    }
     effective = normalize_scoring(configured)
     yardage_rates: dict[str, dict[str, float]] = {}
     for stat, points_per_yard in effective.items():
