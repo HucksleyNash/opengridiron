@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opengridiron"
-version = "0.1.0"
+version = "0.1.1"
 description = "Self-hosted fantasy football and NFL pool decision support."
 readme = "README.md"
 license = "Apache-2.0"
@@ -32,7 +32,7 @@ Issues = "https://github.com/HucksleyNash/opengridiron/issues"
 dev = [
   "pytest>=9.0.3,<10",
   "pytest-asyncio>=1,<2",
-  "ruff>=0.9,<1",
+  "ruff==0.16.5",
 ]
 ml = [
   "numpy>=2,<3",
@@ -49,6 +49,7 @@ testpaths = ["backend/tests"]
 addopts = "-q"
 
 [tool.ruff]
+required-version = "==0.16.5"
 target-version = "py312"
 line-length = 100
 

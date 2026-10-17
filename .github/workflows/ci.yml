@@ -17,9 +17,8 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade 'pip>=26.2.1,<27'
       - run: python -m pip install -e '.[dev]'
-      - run: pytest
-      - run: ruff format --check backend codex_runner
-      - run: ruff check backend codex_runner
+      - name: Backend CI checks
+        run: bash scripts/check.sh backend
 
   frontend:
     runs-on: ubuntu-latest
@@ -32,7 +31,7 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - uses: pnpm/action-setup@v4
         with:
-          version: 11.19.0
+          package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -41,13 +40,9 @@ jobs:
       - working-directory: frontend
         run: pnpm install --frozen-lockfile
       - working-directory: frontend
-        run: pnpm test
-      - working-directory: frontend
-        run: pnpm run build
-      - working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium
-      - working-directory: frontend
-        run: pnpm exec playwright test analysis-context.spec.ts weekly-analysis.spec.ts pool-week.spec.ts draft-room.spec.ts sleeper-pools.spec.ts --project=chromium
+      - name: Frontend CI checks
+        run: bash scripts/check.sh frontend
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
